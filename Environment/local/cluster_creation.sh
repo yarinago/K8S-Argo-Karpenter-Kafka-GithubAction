@@ -12,7 +12,7 @@ RECREATE="${RECREATE:-false}" # set RECREATE=true ./bootstrap/local.sh to rebuil
 install_dependencies() {
     # Install docker
     if ! docker --version &> /dev/null; then
-        log "Installing Docker..."
+        echo "Installing Docker..."
         curl -fsSL https://get.docker.com -o get-docker.sh
         sh get-docker.sh
         rm get-docker.sh
@@ -21,7 +21,7 @@ install_dependencies() {
 
     # Install k3d
     if ! k3d version &> /dev/null; then
-        log "Installing k3d..."
+        echo "Installing k3d..."
         curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
         k3d version
     fi
@@ -42,7 +42,7 @@ cluster_exists() {
 
 # Wait for all nodes to be in 'Ready' state. Max wait time is 5 minutes.
 wait_for_nodes_ready() {
-  log "Waiting for all nodes to be Ready..."
+  echo "Waiting for all nodes to be Ready..."
   kubectl wait --for=condition=Ready node --all --timeout=300s
   kubectl get nodes -o wide
 }
@@ -80,15 +80,18 @@ main() {
 
   if cluster_exists; then
     if [ "$RECREATE" = true ]; then
-      log "Recreating existing k3d cluster: $CLUSTER_NAME"
+      echo "Recreating existing k3d cluster: $CLUSTER_NAME"
       k3d cluster delete "$CLUSTER_NAME" # The command will wait until deletion is complete
       create_cluster
 
     else
-      log "k3d cluster '$CLUSTER_NAME' already exists. Skipping creation."
+      echo "k3d cluster '$CLUSTER_NAME' already exists. Skipping creation."
       exit 0
     fi
-  fi
-
-  log "k3d cluster '$CLUSTER_NAME' created successfully."
+  else
+    create_cluster
+    echo "k3d cluster '$CLUSTER_NAME' created successfully."
+  fi  
 }
+
+main "$@"
