@@ -7,6 +7,11 @@ SERVERS="${SERVERS:-3}"
 AGENTS="${AGENTS:-2}"
 RECREATE="${RECREATE:-false}" # set RECREATE=true ./bootstrap/local.sh to rebuild
 
+# Argo CD
+ARGOCD_NAMESPACE="argocd"
+ARGOCD_CHART_VERSION="${ARGOCD_CHART_VERSION:-7.6.12}"  # pin for reproducibility (update intentionally)
+ARGOCD_RELEASE_NAME="${ARGOCD_RELEASE_NAME:-argocd}"
+
 
 # Check and install if missing dependencies: docker, k3d, kubectl
 install_dependencies() {
@@ -32,6 +37,18 @@ install_dependencies() {
         chmod +x kubectl
         sudo mv kubectl /usr/local/bin/
         kubectl version --client
+    fi
+
+    #install helm
+    if ! helm version &> /dev/null; then
+        echo "Installing Helm..."
+        tmp="$(mktemp -d)"
+        curl -fsSL https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz -o "${tmp}/helm.tgz"
+        tar -xzf "${tmp}/helm.tgz" -C "${tmp}"
+        mv "${tmp}/linux-amd64/helm" /usr/local/bin/helm
+        chmod +x /usr/local/bin/helm
+        rm -rf "${tmp}"
+        helm version --short
     fi
 }
 
@@ -74,6 +91,40 @@ create_cluster() {
     wait_for_nodes_ready
 }
 
+# Create necessary namespaces and install Argo CD
+install_argo_cd() {
+  # Argo CD depends on a namespaced called 'argocd' to be present
+  if ! kubectl get namespace ${ARGOCD_NAMESPACE} &> /dev/null; then
+    echo "Creating '${ARGOCD_NAMESPACE}' namespace..."
+    kubectl create namespace ${ARGOCD_NAMESPACE}
+  else
+    echo "Namespace '${ARGOCD_NAMESPACE}' already exists. Skipping namespace creation."
+  fi
+
+  # Add repo (idempotent)
+  if ! helm repo list | awk '{print $1}' | grep -qx "argo"; then
+    echo "Adding argo-helm repo..."
+    helm repo add argo https://argoproj.github.io/argo-helm
+  fi
+  helm repo update >/dev/null
+
+  # Install/upgrade Argo CD.
+  # Key production-like setting for Ingress TLS termination:
+  # server.insecure=true (Argo runs HTTP behind ingress that terminates TLS)
+  echo "Installing/upgrading Argo CD via Helm (chart version ${ARGOCD_CHART_VERSION})..."
+
+  helm upgrade --install "${ARGOCD_RELEASE_NAME}" argo/argo-cd \
+    --namespace "${ARGOCD_NAMESPACE}" \
+    --version "${ARGOCD_CHART_VERSION}" \
+    --set configs.params."server\.insecure"="true" \
+    --set server.service.type="ClusterIP" \
+    --wait --timeout 10m
+
+  echo "Waiting for Argo CD deployments to be Ready..."
+  kubectl wait deployment -n ${ARGOCD_NAMESPACE} argocd-server argocd-repo-server argocd-application-controller --for=condition=Available=True --timeout=300s
+  kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=60s # Needed when Argo CD is applied and we immediately try to create an Application - common in automation and C
+}
+
 
 main() {
   install_dependencies
@@ -92,6 +143,8 @@ main() {
     create_cluster
     echo "k3d cluster '$CLUSTER_NAME' created successfully."
   fi  
+
+  install_argo_cd
 }
 
 main "$@"
