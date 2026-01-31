@@ -5,12 +5,12 @@
 ## How to Run
 Provide execute commands to the script
 ```sh
-chmod +x cluster_creation.sh
+chmod +x /local/cluster_creation.sh
 ```
 
 Execute the script
 ```sh
-./cluster_creation.sh
+./local/cluster_creation.sh
 
 # You could also change all/some of the default values set in the script like this
 CLUSTER_NAME=[SET_CLUSTER_NAME] \
@@ -18,7 +18,7 @@ SERVERS=[SET_SERVERS_AMOUNT] \
 AGENTS=[SET_AGENTS_AMOUNT] \
 K3S_IMAGE=[SET_IMAGE] \
 RECREATE=[SET_TRUE] \
-./cluster_creation.sh
+./local/cluster_creation.sh
 ```
 
 ### Commands to help manage the cluster in local configuration
