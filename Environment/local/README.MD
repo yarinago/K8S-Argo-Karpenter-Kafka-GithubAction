@@ -32,5 +32,3 @@ k3d cluster delete gitops-ha # remove all resources of the cluster
 ### Why k3d:
 In the local infrasturcure, due to CPU and Memory constrains, I wanted to use a a light know alternative to k8s without hinder the gain in understanding k8s.
 I choose that specific rancher image since it was the latest stable image.
-
-### Why
