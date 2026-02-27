@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# K3S Cluster
 CLUSTER_NAME="${CLUSTER_NAME:-gitops-ha}"
 K3S_IMAGE="${K3S_IMAGE:-rancher/k3s:v1.31.5-k3s1}"
 SERVERS="${SERVERS:-3}"
@@ -9,9 +12,12 @@ RECREATE="${RECREATE:-false}" # set RECREATE=true ./bootstrap/local.sh to rebuil
 
 # Argo CD
 ARGOCD_NAMESPACE="argocd"
-ARGOCD_CHART_VERSION="${ARGOCD_CHART_VERSION:-7.6.12}"  # pin for reproducibility (update intentionally)
+ARGOCD_CHART_VERSION="${ARGOCD_CHART_VERSION:-9.4.2}"  # pin for reproducibility (update intentionally)
 ARGOCD_RELEASE_NAME="${ARGOCD_RELEASE_NAME:-argocd}"
+ARGOCD_SERVER_PORT=31002 # NodePort for local access to Argo CD server (http://localhost:31002)
 
+# SEALED_SECRETS_CHART_VERSION="${SEALED_SECRETS_CHART_VERSION:-2.18.2}"
+# KUBESEAL_VERSION="${KUBESEAL_VERSION:-0.36.0}"
 
 # Check and install if missing dependencies: docker, k3d, kubectl
 install_dependencies() {
@@ -35,7 +41,7 @@ install_dependencies() {
     if ! kubectl version --client &> /dev/null; then
         curl -LO "https://dl.k8s.io/release/$(curl -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
         chmod +x kubectl
-        sudo mv kubectl /usr/local/bin/
+        mv kubectl /usr/local/bin/
         kubectl version --client
     fi
 
@@ -45,14 +51,24 @@ install_dependencies() {
         tmp="$(mktemp -d)"
         curl -fsSL https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz -o "${tmp}/helm.tgz"
         tar -xzf "${tmp}/helm.tgz" -C "${tmp}"
-        mv "${tmp}/linux-amd64/helm" /usr/local/bin/helm
+        sudo mkdir -p /usr/local/bin
+        sudo mv "${tmp}/linux-amd64/helm" /usr/local/bin/helm
         chmod +x /usr/local/bin/helm
         rm -rf "${tmp}"
         helm version --short
     fi
+
+    # # Inside install_dependencies()
+    # if ! kubeseal --version &> /dev/null; then
+    #   echo "Installing kubeseal..."
+    #   curl -fsSL "https://github.com/bitnami-labs/sealed-secrets/releases/download/v${KUBESEAL_VERSION}/kubeseal-${KUBESEAL_VERSION}-linux-amd64.tar.gz" \
+    #     | tar -xz kubeseal
+    #   sudo mv kubeseal /usr/local/bin/kubeseal
+    #   kubeseal --version
+    # fi
 }
 
-# Check the first line of the 'list' output for the cluster name
+# Check if cluster exists by checking first line of the 'list' command output
 cluster_exists() {
   k3d cluster list 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "${CLUSTER_NAME}"
 }
@@ -82,6 +98,7 @@ create_cluster() {
       --api-port 127.0.0.1:6445 \
       --port "8080:80@loadbalancer" \
       --port "8443:443@loadbalancer" \
+      --port "${ARGOCD_SERVER_PORT}:${ARGOCD_SERVER_PORT}@loadbalancer" \
       --k3s-arg "--disable=traefik@server:*" \
       --k3s-arg "--disable=servicelb@server:*" \
       --k3s-arg "--disable=metrics-server@server:*" \
@@ -101,12 +118,12 @@ install_argo_cd() {
     echo "Namespace '${ARGOCD_NAMESPACE}' already exists. Skipping namespace creation."
   fi
 
-  # Add repo (idempotent)
-  if ! helm repo list | awk '{print $1}' | grep -qx "argo"; then
+  # Add repo (idempotent), suppress non-critical error output
+  if ! helm repo list 2>/dev/null | awk '{print $1}' | grep -qx "argo"; then
     echo "Adding argo-helm repo..."
-    helm repo add argo https://argoproj.github.io/argo-helm
+    helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null
   fi
-  helm repo update >/dev/null
+  helm repo update >/dev/null 2>&1
 
   # Install/upgrade Argo CD.
   # Key production-like setting for Ingress TLS termination:
@@ -121,9 +138,38 @@ install_argo_cd() {
     --wait --timeout 10m
 
   echo "Waiting for Argo CD deployments to be Ready..."
-  kubectl wait deployment -n ${ARGOCD_NAMESPACE} argocd-server argocd-repo-server argocd-application-controller --for=condition=Available=True --timeout=300s
-  kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=60s # Needed when Argo CD is applied and we immediately try to create an Application - common in automation and C
+  #kubectl wait deployment -n ${ARGOCD_NAMESPACE} argocd-server argocd-repo-server argocd-application-controller --for=condition=Available=True --timeout=300s
+  # Needed when Argo CD is applied and we immediately try to create an Application - common in automation and CI
+  #kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=60s
+
+  # Expose Argo CD server via NodePort for local access (http://localhost:31002)
+  echo "Exposing Argo CD server via NodePort (http://localhost:31002)..."  
+  kubectl apply -f "${SCRIPT_DIR}/argocd-server-service.yml" -n "${ARGOCD_NAMESPACE}"
 }
+
+# install_sealed_secrets() {
+#   if ! helm repo list 2>/dev/null | awk '{print $1}' | grep -qx "sealed-secrets"; then
+#     echo "Adding sealed-secrets repo..."
+#     helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+#   fi
+#   helm repo update >/dev/null 2>&1
+
+#   echo "Installing Sealed Secrets controller..."
+#   helm upgrade --install sealed-secrets sealed-secrets/sealed-secrets \
+#     --namespace kube-system \
+#     --version "${SEALED_SECRETS_CHART_VERSION}" \
+#     --wait --timeout 5m
+
+#   # Wait for the master keypair Secret to exist — controller generates it on first boot.
+#   # kubeseal fetches this public key when sealing, so it must exist before CI runs kubeseal.
+#   echo "Waiting for Sealed Secrets master key to be generated..."
+#   kubectl wait --for=condition=Ready \
+#     pod -l app.kubernetes.io/name=sealed-secrets \
+#     -n kube-system \
+#     --timeout=120s
+
+#   echo "Sealed Secrets controller ready."
+# }
 
 
 main() {
@@ -137,7 +183,6 @@ main() {
 
     else
       echo "k3d cluster '$CLUSTER_NAME' already exists. Skipping creation."
-      exit 0
     fi
   else
     create_cluster
@@ -145,6 +190,7 @@ main() {
   fi  
 
   install_argo_cd
+  install_sealed_secrets
 }
 
 main "$@"

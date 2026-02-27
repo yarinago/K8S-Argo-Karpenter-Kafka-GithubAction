@@ -1,6 +1,8 @@
 # GitOps Event Platform on Kubernetes (Kafka + Argo CD + Karpenter + Observability + GitHub Actions)
 
 ## Prerequisite 
+* Linux terminal
+* `sudo` command - to install `helm` command
 
 ## How to Run
 Provide execute commands to the script
@@ -31,4 +33,5 @@ k3d cluster delete gitops-ha # remove all resources of the cluster
 ## Architecture Decision Records
 ### Why k3d:
 In the local infrasturcure, due to CPU and Memory constrains, I wanted to use a a light know alternative to k8s without hinder the gain in understanding k8s.
-I choose that specific rancher image since it was the latest stable image.
+I choose that specific rancher image since it was the latest stable image. <br />
+The recommended way to create a k3d cluster for GitOps HA setup is using 3 servers and 3 agents. Because of CPU and Memory constrains in my local machine, I have decided to create a cluster with 3 servers and 2 agents.
