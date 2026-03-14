@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: feature/create-argocd
+      path: Environment/local/charts/infra
+      helm:
+        valueFiles:
+          - $values/Environment/local/argocd/values/infra-values.yaml
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: feature/create-argocd
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infra-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
