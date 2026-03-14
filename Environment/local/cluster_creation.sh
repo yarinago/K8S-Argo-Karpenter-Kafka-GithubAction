@@ -91,6 +91,29 @@ wait_for_nodes_ready() {
     kubectl get nodes -o wide
 }
 
+# Wait for Argo CD workloads without blocking on completed Job pods.
+wait_for_argocd_workloads() {
+    local workloads
+    mapfile -t workloads < <(kubectl -n "${ARGOCD_NAMESPACE}" get deployment,statefulset \
+      -l app.kubernetes.io/part-of=argocd -o name 2>/dev/null || true)
+
+    if [[ "${#workloads[@]}" -eq 0 ]]; then
+        echo "No Argo CD workloads found to wait for."
+        return 0
+    fi
+
+    local workload
+    for workload in "${workloads[@]}"; do
+        echo "Waiting for ${workload} rollout..."
+        if ! kubectl -n "${ARGOCD_NAMESPACE}" rollout status "${workload}" --timeout=600s; then
+            echo "Rollout timed out for ${workload}. Collecting diagnostics..."
+            kubectl -n "${ARGOCD_NAMESPACE}" get pods -l app.kubernetes.io/part-of=argocd -o wide || true
+            kubectl -n "${ARGOCD_NAMESPACE}" describe "${workload}" || true
+            return 1
+        fi
+    done
+}
+
 # Create the k3d cluster with the configured topology and ports.
 create_cluster() {
     k3d cluster create "${CLUSTER_NAME}" \
@@ -330,7 +353,7 @@ install_argo_cd() {
 
     echo "Waiting for Argo CD CRDs and pods..."
     kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=120s
-    kubectl wait --for=condition=Ready pod -n "${ARGOCD_NAMESPACE}" -l app.kubernetes.io/part-of=argocd --timeout=300s
+    wait_for_argocd_workloads
 
     configure_repo_server_sops
 
