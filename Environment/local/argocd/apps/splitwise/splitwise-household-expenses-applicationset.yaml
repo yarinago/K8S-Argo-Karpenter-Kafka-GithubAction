@@ -7,13 +7,13 @@ spec:
   generators:
     - list:
         elements:
-          - name: splitwise-household-expenses
+          - name: splitwise-household-expenses-dev
             env: dev
             namespace: splitwise-dev
             path: k8s/overlays/dev
             revision: feature/create_local_access_ingress
             url: http://splitwise.localtest.me:8080
-          - name: splitwise-household-expenses-prod
+          - name: splitwise-household-expenses
             env: prod
             namespace: splitwise
             path: k8s/overlays/prod
