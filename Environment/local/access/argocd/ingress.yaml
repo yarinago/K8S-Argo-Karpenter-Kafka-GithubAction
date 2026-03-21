@@ -3,6 +3,8 @@ kind: Ingress
 metadata:
   name: argocd-local
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: "true"
 spec:
   ingressClassName: traefik
   rules:
