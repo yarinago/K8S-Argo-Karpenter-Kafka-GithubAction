@@ -1,14 +1,14 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: argocd-local
+  name: argocd-local-access
   namespace: argocd
   annotations:
     argocd.argoproj.io/ignore-healthcheck: "true"
 spec:
   ingressClassName: traefik
   rules:
-    - host: argocd.localtest.me
+    - host: argocd-local-access.localtest.me
       http:
         paths:
           - path: /

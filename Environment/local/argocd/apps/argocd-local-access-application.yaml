@@ -4,6 +4,7 @@ metadata:
   name: argocd-local-access
   namespace: argocd
   annotations:
+    link.argocd.argoproj.io/app: http://argocd-local-access.localtest.me:8080
     argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
