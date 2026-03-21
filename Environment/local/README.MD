@@ -39,7 +39,7 @@ Argo CD syncs from GitHub, not from your local workspace. If you want Argo to se
 
 ## Connect To Argo CD
 
-- Primary UI: `http://argocd-local-access.localtest.me:8080`
+- Primary UI: `http://argocd.localtest.me:8080`
 - Fallback UI: `http://localhost:31002`
 - Username: `admin`
 - Password:
@@ -57,8 +57,8 @@ After Argo CD syncs the root resources and the Splitwise `ApplicationSet`
 generates the environment apps, open:
 
 ```text
-Dev:  http://splitwise-household-expenses-dev.localtest.me:8080
-Prod: http://splitwise-household-expenses.localtest.me:8080
+Dev:  http://splitwise.localtest.me:8080
+Prod: http://splitwise-prod.localtest.me:8080
 ```
 
 The Splitwise ingress for these local URLs is owned by the
