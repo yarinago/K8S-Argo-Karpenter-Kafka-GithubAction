@@ -10,6 +10,8 @@ spec:
   destinations:
     - server: https://kubernetes.default.svc
       namespace: splitwise-dev
+    - server: https://kubernetes.default.svc
+      namespace: splitwise
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"

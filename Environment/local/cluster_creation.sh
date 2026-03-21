@@ -309,7 +309,8 @@ EOF
 print_argocd_access_info() {
     echo "Argo CD UI (ingress): http://argocd.localtest.me:8080"
     echo "Argo CD UI (fallback NodePort): http://localhost:${ARGOCD_SERVER_PORT}"
-    echo "Splitwise UI (after app sync): http://splitwise.localtest.me:8080"
+    echo "Splitwise UI (dev after app sync): http://splitwise.localtest.me:8080"
+    echo "Splitwise UI (prod after app sync): http://splitwise-prod.localtest.me:8080"
     echo "Argo CD username: admin"
     echo "Argo CD initial password is stored in secret: argocd-initial-admin-secret"
     echo "Retrieve it manually with:"

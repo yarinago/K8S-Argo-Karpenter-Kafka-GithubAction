@@ -16,7 +16,9 @@ This folder bootstraps a local k3d cluster, installs Argo CD, and creates a root
    - Helm chart: `Environment/local/charts/infra`
    - External values file (via Argo CD multi-source): `Environment/local/argocd/values/infra-values.yaml`
 9. Child app that installs Traefik from the official Helm chart
-10. Child apps that publish local ingress routes for Argo CD and splitwise
+10. Child app that publishes the local ingress route for Argo CD
+11. Splitwise Argo resources grouped under `Environment/local/argocd/apps/splitwise`
+    using an `AppProject` plus an `ApplicationSet` that generates the dev and prod apps
 
 `infra` is a placeholder infra app (Namespace + ConfigMap) so the GitOps loop is demonstrated immediately.
 SOPS+age support is app-agnostic and can be reused by any app repo synced by this Argo CD instance.
@@ -51,11 +53,17 @@ The built-in k3s Traefik remains disabled; this repo installs and manages Traefi
 
 ## Open Splitwise
 
-After Argo CD syncs the child apps, open:
+After Argo CD syncs the root resources and the Splitwise `ApplicationSet`
+generates the environment apps, open:
 
 ```text
-http://splitwise.localtest.me:8080
+Dev:  http://splitwise.localtest.me:8080
+Prod: http://splitwise-prod.localtest.me:8080
 ```
+
+The Splitwise ingress for these local URLs is owned by the
+`splitwise-household-expenses` repo's `k8s/overlays/dev` and
+`k8s/overlays/prod` overlays.
 
 ## SOPS+age First Run
 

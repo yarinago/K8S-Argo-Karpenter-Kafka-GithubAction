@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: splitwise-household-expenses
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: splitwise-household-expenses
+            env: dev
+            namespace: splitwise-dev
+            path: k8s/overlays/dev
+            revision: feature/create_local_access_ingress
+            url: http://splitwise.localtest.me:8080
+          - name: splitwise-household-expenses-prod
+            env: prod
+            namespace: splitwise
+            path: k8s/overlays/prod
+            revision: feature/create_local_access_ingress
+            url: http://splitwise-prod.localtest.me:8080
+  template:
+    metadata:
+      name: "{{name}}"
+      namespace: argocd
+      labels:
+        app.kubernetes.io/name: splitwise-household-expenses
+        app.kubernetes.io/part-of: splitwise-household-expenses
+        app.kubernetes.io/component: application
+        app.kubernetes.io/instance: "{{env}}"
+      annotations:
+        link.argocd.argoproj.io/app: "{{url}}"
+    spec:
+      project: splitwise-household-expenses
+      source:
+        repoURL: https://github.com/yarinago/splitwise-household-expenses.git
+        targetRevision: "{{revision}}"
+        path: "{{path}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{namespace}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

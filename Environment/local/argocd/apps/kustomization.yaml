@@ -4,7 +4,5 @@ kind: Kustomization
 resources:
   - argocd-local-access-application.yaml
   - infra-application.yaml
-  - splitwise-household-expenses-project.yaml
-  - splitwise-household-expenses-application.yaml
-  - splitwise-local-access-application.yaml
+  - splitwise
   - traefik-ingress-application.yaml
