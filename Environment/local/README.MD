@@ -57,8 +57,8 @@ After Argo CD syncs the root resources and the Splitwise `ApplicationSet`
 generates the environment apps, open:
 
 ```text
-Dev:  http://splitwise.localtest.me:8080
-Prod: http://splitwise-prod.localtest.me:8080
+Dev:  http://splitwise-dev.localtest.me:8080
+Prod: http://splitwise.localtest.me:8080
 ```
 
 The Splitwise ingress for these local URLs is owned by the
