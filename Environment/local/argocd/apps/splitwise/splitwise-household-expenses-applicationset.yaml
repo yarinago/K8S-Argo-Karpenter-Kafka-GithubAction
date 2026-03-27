@@ -11,13 +11,13 @@ spec:
             env: dev
             namespace: splitwise-dev
             path: k8s/overlays/dev
-            revision: feature/create_local_access_ingress
+            revision: develop
             url: http://splitwise-dev.localtest.me:8080
           - name: splitwise-household-expenses
             env: prod
             namespace: splitwise
             path: k8s/overlays/prod
-            revision: feature/create_local_access_ingress
+            revision: main
             url: http://splitwise.localtest.me:8080
   template:
     metadata:
