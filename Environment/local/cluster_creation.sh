@@ -28,6 +28,7 @@ AGE_VERSION="${AGE_VERSION:-v1.2.1}"
 GITOPS_REPO_URL="${GITOPS_REPO_URL:-}"
 GITOPS_REPO_REVISION="${GITOPS_REPO_REVISION:-}"
 ARGOCD_ROOT_APP_NAME="${ARGOCD_ROOT_APP_NAME:-platform-root}"
+ARGOCD_ROOT_APP_PROJECT="${ARGOCD_ROOT_APP_PROJECT:-local-platform}"
 ARGOCD_ROOT_APP_PATH="${ARGOCD_ROOT_APP_PATH:-Environment/local/argocd/apps}"
 
 # Install required local dependencies only when missing.
@@ -354,12 +355,19 @@ install_argo_cd() {
 
     echo "Waiting for Argo CD CRDs and pods..."
     kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=120s
+    kubectl wait --for=condition=Established crd/appprojects.argoproj.io --timeout=120s
     wait_for_argocd_workloads
 
     configure_repo_server_sops
 
     echo "Creating fallback Argo CD NodePort (http://localhost:${ARGOCD_SERVER_PORT})..."
-    kubectl apply -f "${SCRIPT_DIR}/argocd-server-service.yml" -n "${ARGOCD_NAMESPACE}"
+    kubectl apply -f "${SCRIPT_DIR}/argocd/access/argocd/nodeport-service.yaml" -n "${ARGOCD_NAMESPACE}"
+}
+
+# Create the custom AppProject used by the root app and local platform child apps.
+bootstrap_root_project() {
+    echo "Bootstrapping Argo CD project '${ARGOCD_ROOT_APP_PROJECT}'..."
+    kubectl apply -f "${SCRIPT_DIR}/argocd/apps/platform/local-platform-project.yaml"
 }
 
 # Create the root Argo CD app that bootstraps child applications.
@@ -377,7 +385,7 @@ metadata:
   name: ${ARGOCD_ROOT_APP_NAME}
   namespace: ${ARGOCD_NAMESPACE}
 spec:
-  project: default
+  project: ${ARGOCD_ROOT_APP_PROJECT}
   source:
     repoURL: ${repo_url}
     targetRevision: ${repo_revision}
@@ -412,6 +420,7 @@ main() {
     fi
 
     install_argo_cd
+    bootstrap_root_project
     bootstrap_root_application
 
     echo "Bootstrap complete."

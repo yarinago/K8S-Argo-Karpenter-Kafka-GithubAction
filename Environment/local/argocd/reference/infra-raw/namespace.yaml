@@ -1,3 +1,4 @@
+# Namespace used by the placeholder local infra app.
 apiVersion: v1
 kind: Namespace
 metadata:

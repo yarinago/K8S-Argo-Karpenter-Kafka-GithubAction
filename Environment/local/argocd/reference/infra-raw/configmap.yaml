@@ -1,3 +1,5 @@
+# Placeholder resource for the local infra app.
+# It exists mostly to prove the infra app is syncing something useful.
 apiVersion: v1
 kind: ConfigMap
 metadata:

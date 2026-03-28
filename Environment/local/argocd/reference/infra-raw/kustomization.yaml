@@ -1,0 +1,9 @@
+# Raw-manifest version of the local infra placeholder resources.
+# Note: the current Argo Application deploys the Helm chart under argocd/charts/infra,
+# not this directory. This folder is the plain-Kustomize equivalent/reference.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - configmap.yaml

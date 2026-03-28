@@ -1,0 +1,8 @@
+# Small Kustomize package for Argo CD access resources.
+# Argo Application sources usually point at directories, so this file makes
+# the folder a clean deployable unit even though it currently contains one file.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ingress.yaml

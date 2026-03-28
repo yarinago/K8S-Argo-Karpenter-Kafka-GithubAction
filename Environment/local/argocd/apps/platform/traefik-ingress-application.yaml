@@ -1,25 +1,33 @@
+# Argo CD Application that installs the Traefik ingress controller.
+# Ingress objects like access/argocd/ingress.yaml need an ingress controller
+# to actually receive HTTP traffic and forward it to Services.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: traefik-ingress
   namespace: argocd
   annotations:
+    # Install Traefik before ingress resources that depend on it.
     argocd.argoproj.io/sync-wave: "-1"
 spec:
-  project: default
+  project: local-platform
   sources:
+    # Traefik itself comes from the upstream Helm repository.
     - repoURL: https://traefik.github.io/charts
       chart: traefik
       targetRevision: 38.0.2
       helm:
         releaseName: traefik
         valueFiles:
+          # Custom local-cluster settings live in this repo.
           - $values/Environment/local/argocd/values/traefik-values.yaml
+    # This source only exists so the Helm values file above can be loaded via $values.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
       targetRevision: feature/create-argocd
       ref: values
   destination:
     server: https://kubernetes.default.svc
+    # Dedicated namespace for the ingress controller.
     namespace: traefik
   syncPolicy:
     automated:

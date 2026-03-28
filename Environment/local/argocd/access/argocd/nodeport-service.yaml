@@ -1,0 +1,26 @@
+# Direct fallback access path to the Argo CD UI.
+# Argo does not automatically "switch" to this instead of ingress.
+# It is used only when you open the NodePort URL (for example localhost:31002).
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server-nodeport
+  labels:
+    app.kubernetes.io/name: argocd-server
+    app.kubernetes.io/component: server
+    app.kubernetes.io/part-of: argocd
+spec:
+  # Expose the Service on a fixed port on the cluster node for troubleshooting/bootstrap.
+  type: NodePort
+  ports:
+    - name: http
+      # Service port inside Kubernetes.
+      port: 80
+      # Port exposed by the argocd-server container.
+      targetPort: 8080
+      # Stable node-level port you can open from your machine.
+      nodePort: 31002
+      protocol: TCP
+  selector:
+    # Route to the existing argocd-server Pods.
+    app.kubernetes.io/name: argocd-server

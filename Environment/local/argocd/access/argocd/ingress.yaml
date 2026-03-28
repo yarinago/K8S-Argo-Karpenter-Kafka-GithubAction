@@ -1,0 +1,31 @@
+# Friendly local URL for the Argo CD UI.
+# localtest.me resolves to localhost, so this is convenient for local clusters.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-local-access
+  namespace: argocd
+  annotations:
+    # Local Traefik hostPort setup does not publish normal LB status, so ignore health noise.
+    argocd.argoproj.io/ignore-healthcheck: "true"
+    # Use the explicit external-link below instead of Argo's default guessed link.
+    argocd.argoproj.io/ignore-default-links: "true"
+    # Resource-level clickable link shown by Argo for this ingress.
+    link.argocd.argoproj.io/external-link: http://argocd.localtest.me:8080
+spec:
+  # Must match the ingress controller installed by traefik-ingress-application.yaml.
+  ingressClassName: traefik
+  rules:
+    # Host-based routing: requests for this host are sent to argocd-server.
+    - host: argocd.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                # The Kubernetes Service backing the Argo CD UI.
+                name: argocd-server
+                port:
+                  # Ingress talks to the Service port, not directly to the container port.
+                  number: 80
