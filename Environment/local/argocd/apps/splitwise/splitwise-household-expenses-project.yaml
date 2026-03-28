@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: splitwise-household-expenses
+  namespace: argocd
+spec:
+  description: Argo CD project for splitwise-household-expenses
+  sourceRepos:
+    - https://github.com/yarinago/splitwise-household-expenses.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: splitwise-dev
+    - server: https://kubernetes.default.svc
+      namespace: splitwise
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

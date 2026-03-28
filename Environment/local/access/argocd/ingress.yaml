@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-local-access
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: "true"
+    argocd.argoproj.io/ignore-default-links: "true"
+    link.argocd.argoproj.io/external-link: http://argocd.localtest.me:8080
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: argocd.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80

@@ -1,0 +1,8 @@
+namespace:
+  name: infra-system
+
+configMap:
+  name: infra-bootstrap
+  data:
+    managedBy: argocd
+    purpose: local infra app placeholder managed via app-of-apps
