@@ -128,7 +128,7 @@ Root app bootstrap:
 Example:
 
 ```sh
-GITOPS_REPO_REVISION=feature/create-argocd \
+GITOPS_REPO_REVISION=main \
 ARGOCD_ROOT_APP_NAME=my-root \
 ./Environment/local/cluster_creation.sh
 ```

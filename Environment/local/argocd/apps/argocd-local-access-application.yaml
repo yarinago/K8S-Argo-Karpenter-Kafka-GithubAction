@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-    targetRevision: feature/create-argocd
+    targetRevision: main
     path: Environment/local/access/argocd
   destination:
     server: https://kubernetes.default.svc
