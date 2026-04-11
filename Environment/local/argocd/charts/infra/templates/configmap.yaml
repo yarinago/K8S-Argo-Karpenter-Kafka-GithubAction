@@ -1,0 +1,10 @@
+# Helm template for the placeholder ConfigMap created by the infra chart.
+# Values are injected from argocd/values/infra-values.yaml at render time.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.configMap.name }}
+  namespace: {{ .Values.namespace.name }}
+data:
+  managed-by: {{ .Values.configMap.data.managedBy | quote }}
+  purpose: {{ .Values.configMap.data.purpose | quote }}

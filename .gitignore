@@ -1,0 +1,4 @@
+# Local Word documents
+*.docx
+~$*.docx
+~WRL*.tmp

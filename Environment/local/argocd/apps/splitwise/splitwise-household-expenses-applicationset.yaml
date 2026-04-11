@@ -1,0 +1,57 @@
+# Generate one Argo CD Application per Splitwise environment.
+# This avoids duplicating near-identical Application YAML files for dev/prod.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: splitwise-household-expenses
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        # Each element becomes one generated Argo CD Application.
+        elements:
+          - name: splitwise-household-expenses-dev
+            env: dev
+            namespace: splitwise-dev
+            # Path inside the Splitwise repo for this environment's manifests.
+            path: k8s/overlays/dev
+            # Dev follows the develop branch.
+            revision: develop
+            url: http://splitwise-dev.localtest.me:8080
+          - name: splitwise-household-expenses
+            env: prod
+            namespace: splitwise
+            path: k8s/overlays/prod
+            # Prod follows the main branch.
+            revision: main
+            url: http://splitwise.localtest.me:8080
+  template:
+    metadata:
+      # Use the explicit per-environment application names from the generator.
+      name: "{{name}}"
+      namespace: argocd
+      labels:
+        app.kubernetes.io/name: splitwise-household-expenses
+        app.kubernetes.io/part-of: splitwise-household-expenses
+        app.kubernetes.io/component: application
+        # Helpful for filtering generated apps by environment in the Argo UI.
+        app.kubernetes.io/instance: "{{env}}"
+      annotations:
+        # Clickable application link shown in Argo CD.
+        link.argocd.argoproj.io/app: "{{url}}"
+    spec:
+      project: splitwise-household-expenses
+      source:
+        repoURL: https://github.com/yarinago/splitwise-household-expenses.git
+        targetRevision: "{{revision}}"
+        path: "{{path}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{namespace}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          # Create the destination namespace if it is missing.
+          - CreateNamespace=true

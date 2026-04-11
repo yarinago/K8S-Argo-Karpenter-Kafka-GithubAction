@@ -1,0 +1,10 @@
+# Placeholder resource for the local infra app.
+# It exists mostly to prove the infra app is syncing something useful.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infra-bootstrap
+  namespace: infra-system
+data:
+  managed-by: argocd
+  purpose: "local infra app placeholder managed via app-of-apps"

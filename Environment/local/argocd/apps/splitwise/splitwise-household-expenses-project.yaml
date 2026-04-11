@@ -1,0 +1,30 @@
+# Dedicated Argo CD project for Splitwise applications.
+# Unlike local-platform, this one is intentionally scoped to the Splitwise repo
+# and the namespaces used by the Splitwise dev/prod environments.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: splitwise-household-expenses
+  namespace: argocd
+  annotations:
+    # Create the project before the ApplicationSet generates apps that use it.
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  description: Argo CD project for splitwise-household-expenses
+  sourceRepos:
+    # Only allow manifests from the Splitwise application repository.
+    - https://github.com/yarinago/splitwise-household-expenses.git
+  destinations:
+    # Dev namespace in the local cluster.
+    - server: https://kubernetes.default.svc
+      namespace: splitwise-dev
+    # Prod-like namespace in the local cluster.
+    - server: https://kubernetes.default.svc
+      namespace: splitwise
+  clusterResourceWhitelist:
+    # Broadly allowed for simplicity in local bootstrap.
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

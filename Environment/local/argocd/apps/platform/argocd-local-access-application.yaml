@@ -1,0 +1,28 @@
+# Argo CD Application that creates the Argo CD UI ingress.
+# This does not replace the NodePort fallback; it simply adds a friendlier URL.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-local-access
+  namespace: argocd
+  annotations:
+    # The clickable app link in Argo points to the ingress URL, not to the NodePort.
+    link.argocd.argoproj.io/app: http://argocd.localtest.me:8080
+    # Wait until Traefik is installed before creating the ingress.
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: local-platform
+  source:
+    repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+    targetRevision: HEAD
+    # Folder containing the actual Ingress manifest.
+    path: Environment/local/argocd/access/argocd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,10 @@
+# Root Kustomize bundle for the local app-of-apps setup.
+# The bootstrap Argo CD app points at this directory and creates these child apps.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Local platform apps and their dedicated Argo project.
+  - platform
+  # Groups Splitwise-specific Argo resources under one directory.
+  - splitwise

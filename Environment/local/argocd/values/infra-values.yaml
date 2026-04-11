@@ -1,0 +1,10 @@
+# Values consumed by charts/infra.
+# These are not Kubernetes objects by themselves; Argo passes them to Helm.
+namespace:
+  name: infra-system
+
+configMap:
+  name: infra-bootstrap
+  data:
+    managedBy: argocd
+    purpose: local infra app placeholder managed via app-of-apps
