@@ -1,0 +1,29 @@
+# Dedicated Argo CD project for local platform/bootstrap applications.
+# This replaces the built-in "default" project in the UI while still allowing
+# the root app and platform apps to manage local infrastructure resources.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: local-platform
+  namespace: argocd
+  annotations:
+    # Create the project before Applications that reference it.
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  description: Argo CD project for local platform bootstrap applications
+  sourceRepos:
+    # Keep sources open so the root app can still work if GITOPS_REPO_URL is overridden.
+    - "*"
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+    - server: https://kubernetes.default.svc
+      namespace: traefik
+    - server: https://kubernetes.default.svc
+      namespace: infra-system
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

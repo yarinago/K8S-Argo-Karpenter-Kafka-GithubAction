@@ -1,7 +1,11 @@
+# Values passed to the upstream Traefik Helm chart.
+# They shape Traefik for a small local cluster rather than a cloud environment.
 deployment:
+  # Run Traefik on each node directly. This fits local clusters well.
   kind: DaemonSet
 
 ingressClass:
+  # Enable the "traefik" ingress class and make it the default one.
   enabled: true
   isDefaultClass: true
   name: traefik
@@ -9,18 +13,24 @@ ingressClass:
 providers:
   kubernetesIngress:
     publishedService:
+      # Disabled because this local setup does not rely on a LoadBalancer Service
+      # for Traefik. One side effect is that ingress status/health can look odd in Argo.
       enabled: false
 
 ports:
   web:
+    # Bind HTTP directly on the node. External host-to-cluster port mapping is handled outside Helm.
     hostPort: 80
   websecure:
+    # Bind HTTPS directly on the node as well.
     hostPort: 443
 
 service:
+  # No Traefik Service is created; traffic reaches Traefik through hostPort instead.
   enabled: false
 
 tolerations:
+  # Allow scheduling on the control-plane node, which is common in single-node local clusters.
   - key: node-role.kubernetes.io/control-plane
     operator: Exists
     effect: NoSchedule

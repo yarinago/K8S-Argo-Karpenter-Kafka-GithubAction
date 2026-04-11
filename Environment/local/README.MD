@@ -12,16 +12,31 @@ This folder bootstraps a local k3d cluster, installs Argo CD, and creates a root
 6. `argocd/sops-age` secret synced from a local age key file
 7. Root Argo CD app (`platform-root`) that points to:
    - `Environment/local/argocd/apps`
-8. Child app `infra` that points to:
-   - Helm chart: `Environment/local/charts/infra`
+8. Dedicated Argo CD project `local-platform` for the root app and local platform apps
+9. Child app `infra` that points to:
+   - Helm chart: `Environment/local/argocd/charts/infra`
    - External values file (via Argo CD multi-source): `Environment/local/argocd/values/infra-values.yaml`
-9. Child app that installs Traefik from the official Helm chart
-10. Child app that publishes the local ingress route for Argo CD
-11. Splitwise Argo resources grouped under `Environment/local/argocd/apps/splitwise`
+10. Child app that installs Traefik from the official Helm chart
+11. Child app that publishes the local ingress route for Argo CD
+12. Splitwise Argo resources grouped under `Environment/local/argocd/apps/splitwise`
     using an `AppProject` plus an `ApplicationSet` that generates the dev and prod apps
 
 `infra` is a placeholder infra app (Namespace + ConfigMap) so the GitOps loop is demonstrated immediately.
 SOPS+age support is app-agnostic and can be reused by any app repo synced by this Argo CD instance.
+
+## Layout
+
+```text
+Environment/local/
+  argocd/
+    access/argocd/              # Argo CD ingress + NodePort fallback service
+    apps/
+      platform/                 # Local platform project + platform apps
+      splitwise/                # Splitwise AppProject + ApplicationSet
+    charts/infra/               # Local Helm chart used by the infra app
+    reference/infra-raw/        # Raw-manifest equivalent of the infra chart (reference only)
+    values/                     # Helm values for local apps/charts
+```
 
 ## Prerequisites
 
@@ -123,6 +138,7 @@ Root app bootstrap:
 - `GITOPS_REPO_URL` (default: detected from git remote)
 - `GITOPS_REPO_REVISION` (default: current git branch, fallback `main`)
 - `ARGOCD_ROOT_APP_NAME` (default: `platform-root`)
+- `ARGOCD_ROOT_APP_PROJECT` (default: `local-platform`)
 - `ARGOCD_ROOT_APP_PATH` (default: `Environment/local/argocd/apps`)
 
 Example:
