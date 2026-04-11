@@ -14,7 +14,7 @@ spec:
   project: local-platform
   source:
     repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-    targetRevision: feature/create-argocd
+    targetRevision: HEAD
     # Folder containing the actual Ingress manifest.
     path: Environment/local/argocd/access/argocd
   destination:
