@@ -1,4 +1,5 @@
-# GitOps Event Platform on Kubernetes (Kafka + Argo CD + Karpenter + Observability + GitHub Actions)
+# Task Description
+GitOps Event Platform on Kubernetes (Kafka + Argo CD + Karpenter + Observability + GitHub Actions)
 
 ## Objective
 Build a production-style platform locally (zero cloud cost) that:
