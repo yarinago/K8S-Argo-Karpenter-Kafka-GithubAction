@@ -1,4 +1,4 @@
-# Dedicated Argo CD project for local platform/bootstrap applications.
+﻿# Dedicated Argo CD project for local platform/bootstrap applications.
 # This replaces the built-in "default" project in the UI while still allowing
 # the root app and platform apps to manage local infrastructure resources.
 apiVersion: argoproj.io/v1alpha1
@@ -21,6 +21,10 @@ spec:
       namespace: traefik
     - server: https://kubernetes.default.svc
       namespace: infra-system
+    - server: https://kubernetes.default.svc
+      namespace: strimzi-system
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"

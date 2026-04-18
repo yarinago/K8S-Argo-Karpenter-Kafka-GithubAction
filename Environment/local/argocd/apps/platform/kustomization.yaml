@@ -1,4 +1,4 @@
-# Group the local platform apps together so they do not clutter the root folder.
+﻿# Group the local platform apps together so they do not clutter the root folder.
 # This package contains the custom project plus Argo-facing platform applications.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -8,3 +8,5 @@ resources:
   - infra-application.yaml
   - traefik-ingress-application.yaml
   - argocd-local-access-application.yaml
+  - strimzi-operator-application.yaml
+  - monitoring-application.yaml

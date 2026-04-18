@@ -1,0 +1,4 @@
+﻿# Local Strimzi operator configuration.
+watchNamespaces:
+  - splitwise-dev
+  - splitwise

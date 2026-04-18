@@ -1,4 +1,4 @@
-# Dedicated Argo CD project for Splitwise applications.
+﻿# Dedicated Argo CD project for Splitwise applications.
 # Unlike local-platform, this one is intentionally scoped to the Splitwise repo
 # and the namespaces used by the Splitwise dev/prod environments.
 apiVersion: argoproj.io/v1alpha1
@@ -12,8 +12,9 @@ metadata:
 spec:
   description: Argo CD project for splitwise-household-expenses
   sourceRepos:
-    # Only allow manifests from the Splitwise application repository.
+    # Allow both the Splitwise app repo and the local GitOps repo that adds the Kafka runtime layer.
     - https://github.com/yarinago/splitwise-household-expenses.git
+    - https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
   destinations:
     # Dev namespace in the local cluster.
     - server: https://kubernetes.default.svc

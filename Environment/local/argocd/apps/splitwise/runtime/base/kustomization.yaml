@@ -1,0 +1,13 @@
+﻿apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - producer-deployment.yaml
+  - loadgen-deployment.yaml
+  - kafka-cluster.yaml
+  - kafka-nodepool.yaml
+  - topic.yaml
+  - producer-podmonitor.yaml
+  - runtime-podmonitor.yaml
+  - kafka-exporter-podmonitor.yaml

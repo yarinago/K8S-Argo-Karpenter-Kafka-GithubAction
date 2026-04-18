@@ -1,0 +1,37 @@
+﻿alertmanager:
+  enabled: false
+
+grafana:
+  defaultDashboardsEnabled: false
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      argocd.argoproj.io/ignore-healthcheck: "true"
+      argocd.argoproj.io/ignore-default-links: "true"
+      link.argocd.argoproj.io/external-link: http://grafana.localtest.me:8080
+    hosts:
+      - grafana.localtest.me
+    path: /
+    pathType: Prefix
+  grafana.ini:
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+    auth:
+      disable_login_form: true
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+      label: grafana_datasource
+      labelValue: "1"
+      searchNamespace: ALL
+
+prometheus:
+  prometheusSpec:
+    retention: 2d
