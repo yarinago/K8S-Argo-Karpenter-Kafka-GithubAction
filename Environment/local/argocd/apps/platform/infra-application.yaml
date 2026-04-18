@@ -10,7 +10,7 @@ spec:
   sources:
     # The chart source: Argo renders the Helm chart stored in this repo.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-      targetRevision: HEAD
+      targetRevision: feature/create-kafka
       path: Environment/local/argocd/charts/infra
       helm:
         valueFiles:
@@ -19,7 +19,7 @@ spec:
     # This second source does not deploy resources by itself.
     # It only exposes this repo as "$values" so Argo can read the values file above.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-      targetRevision: HEAD
+      targetRevision: feature/create-kafka
       ref: values
   destination:
     server: https://kubernetes.default.svc
