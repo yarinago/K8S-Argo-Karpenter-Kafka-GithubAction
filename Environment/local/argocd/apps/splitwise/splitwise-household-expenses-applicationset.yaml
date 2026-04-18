@@ -15,8 +15,8 @@ spec:
             namespace: splitwise-dev
             # Path inside the Splitwise repo for this environment's manifests.
             path: k8s/overlays/dev
-            # Dev follows the develop branch.
-            revision: develop
+            # Dev follows the Kafka feature branch for testing.
+            revision: feature/align-code-to-kafka
             url: http://splitwise-dev.localtest.me:8080
           - name: splitwise-household-expenses
             env: prod

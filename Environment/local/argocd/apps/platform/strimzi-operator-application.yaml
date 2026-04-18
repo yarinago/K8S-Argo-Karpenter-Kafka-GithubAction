@@ -17,7 +17,7 @@ spec:
         valueFiles:
           - $values/Environment/local/argocd/values/strimzi-values.yaml
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-      targetRevision: HEAD
+      targetRevision: feature/create-kafka
       ref: values
   destination:
     server: https://kubernetes.default.svc
