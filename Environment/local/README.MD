@@ -13,9 +13,7 @@ This folder bootstraps a local k3d cluster, installs Argo CD, and creates a root
 7. Root Argo CD app (`platform-root`) that points to:
    - `Environment/local/argocd/apps`
 8. Dedicated Argo CD project `local-platform` for the root app and local platform apps
-9. Child app `infra` that points to:
-   - Helm chart: `Environment/local/argocd/charts/infra`
-   - External values file (via Argo CD multi-source): `Environment/local/argocd/values/infra-values.yaml`
+9. Commented-out placeholder `infra` example kept in the repo for reference only
 10. Child app that installs Traefik from the official Helm chart
 11. Child app that publishes the local ingress route for Argo CD
 12. Child app that installs the Strimzi Cluster Operator
@@ -24,7 +22,7 @@ This folder bootstraps a local k3d cluster, installs Argo CD, and creates a root
     using an `AppProject` plus an `ApplicationSet` that generates the dev and prod apps
 15. Splitwise dev/prod apps that combine the application repo overlays with a local Kafka runtime layer
 
-`infra` is a placeholder infra app (Namespace + ConfigMap) so the GitOps loop is demonstrated immediately.
+The `infra` placeholder example is currently commented out and kept only as a reference.
 SOPS+age support is app-agnostic and can be reused by any app repo synced by this Argo CD instance.
 
 ## Layout
@@ -36,8 +34,8 @@ Environment/local/
     apps/
       platform/                 # Local platform project + platform apps
       splitwise/                # Splitwise AppProject + ApplicationSet + Kafka runtime overlays
-    charts/infra/               # Local Helm chart used by the infra app
-    reference/infra-raw/        # Raw-manifest equivalent of the infra chart (reference only)
+    charts/infra/               # Commented-out Helm example for the placeholder infra app
+    reference/infra-raw/        # Commented-out raw-manifest equivalent of the infra chart
     values/                     # Helm values for local apps/charts
 ```
 

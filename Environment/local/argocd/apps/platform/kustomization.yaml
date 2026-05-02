@@ -5,7 +5,8 @@ kind: Kustomization
 
 resources:
   - local-platform-project.yaml
-  - infra-application.yaml
+  # Placeholder educational bootstrap app kept disabled for now.
+  # - infra-application.yaml
   - traefik-ingress-application.yaml
   - argocd-local-access-application.yaml
   - strimzi-operator-application.yaml
