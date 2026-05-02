@@ -15,16 +15,11 @@ spec:
     # Keep sources open so the root app can still work if GITOPS_REPO_URL is overridden.
     - "*"
   destinations:
+    # Local bootstrap is intentionally permissive: platform apps such as Strimzi
+    # may need to create RBAC or other namespace-scoped resources outside their
+    # own release namespace (for example in watched app namespaces).
     - server: https://kubernetes.default.svc
-      namespace: argocd
-    - server: https://kubernetes.default.svc
-      namespace: traefik
-    - server: https://kubernetes.default.svc
-      namespace: infra-system
-    - server: https://kubernetes.default.svc
-      namespace: strimzi-system
-    - server: https://kubernetes.default.svc
-      namespace: monitoring
+      namespace: "*"
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
