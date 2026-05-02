@@ -203,107 +203,30 @@ sync_sops_age_secret() {
       --dry-run=client -o yaml | kubectl apply -f -
 }
 
-# Patch repo-server to support KSOPS with SOPS+age for Kustomize apps.
-configure_repo_server_sops() {
-    local patch_file
-    patch_file="$(mktemp)"
+# Verify that the repo-server pod has ksops installed, with diagnostics on failure.
+verify_repo_server_sops() {
+    echo "Verifying KSOPS installation in argocd-repo-server..."
+    local latest_pod
+    latest_pod="$(kubectl -n "${ARGOCD_NAMESPACE}" get pods \
+      -l app.kubernetes.io/name=argocd-repo-server \
+      --sort-by=.metadata.creationTimestamp -o name | tail -n 1 | cut -d/ -f2)"
 
-    cat > "${patch_file}" <<EOF
-spec:
-  template:
-    spec:
-      volumes:
-        - name: custom-tools
-          emptyDir: {}
-        - name: ksops-plugin
-          emptyDir: {}
-        - name: sops-age
-          secret:
-            secretName: ${SOPS_AGE_SECRET_NAME}
-      initContainers:
-        - name: install-sops-and-ksops
-          image: alpine:3.20
-          command: ["/bin/sh", "-ec"]
-          args:
-            - |
-              set -euo pipefail
-              apk add --no-cache curl tar
-              KSOPS_VERSION="v${KSOPS_VERSION#v}"
-              SOPS_VERSION="v${SOPS_VERSION#v}"
-              mkdir -p /custom-tools /ksops-plugin/viaduct.ai/v1/ksops /tmp/ksops
-              curl -fsSL "https://github.com/viaduct-ai/kustomize-sops/releases/download/\${KSOPS_VERSION}/ksops_\${KSOPS_VERSION#v}_Linux_x86_64.tar.gz" -o /tmp/ksops.tgz
-              tar -xzf /tmp/ksops.tgz -C /tmp/ksops
-              mv /tmp/ksops/ksops /ksops-plugin/viaduct.ai/v1/ksops/ksops
-              chmod +x /ksops-plugin/viaduct.ai/v1/ksops/ksops
-              curl -fsSL -o /custom-tools/sops "https://github.com/getsops/sops/releases/download/\${SOPS_VERSION}/sops-\${SOPS_VERSION}.linux.amd64"
-              chmod +x /custom-tools/sops
-          volumeMounts:
-            - name: custom-tools
-              mountPath: /custom-tools
-            - name: ksops-plugin
-              mountPath: /ksops-plugin
-      containers:
-        - name: repo-server
-          env:
-            - name: XDG_CONFIG_HOME
-              value: /home/argocd/.config
-            - name: SOPS_AGE_KEY_FILE
-              value: /etc/argocd/sops-age/keys.txt
-          volumeMounts:
-            - name: custom-tools
-              mountPath: /usr/local/bin/sops
-              subPath: sops
-            - name: ksops-plugin
-              mountPath: /home/argocd/.config/kustomize/plugin
-            - name: sops-age
-              mountPath: /etc/argocd/sops-age
-              readOnly: true
-EOF
-
-    echo "Patching argocd-repo-server for SOPS/KSOPS support..."
-    kubectl -n "${ARGOCD_NAMESPACE}" patch deployment argocd-repo-server --type strategic --patch-file "${patch_file}"
-    rm -f "${patch_file}"
-
-    echo "Enabling Kustomize exec plugins in argocd-cm..."
-    local build_options
-    build_options="$(kubectl -n "${ARGOCD_NAMESPACE}" get configmap argocd-cm -o jsonpath='{.data.kustomize\.buildOptions}' 2>/dev/null || true)"
-    if [[ " ${build_options} " != *" --enable-alpha-plugins "* ]]; then
-        build_options="${build_options} --enable-alpha-plugins"
-    fi
-    if [[ " ${build_options} " != *" --enable-exec "* ]]; then
-        build_options="${build_options} --enable-exec"
-    fi
-    build_options="$(echo "${build_options}" | xargs)"
-    kubectl -n "${ARGOCD_NAMESPACE}" patch configmap argocd-cm --type merge \
-      -p "$(printf '{"data":{"kustomize.buildOptions":"%s"}}' "${build_options}")"
-
-    echo "Restarting argocd-repo-server..."
-    kubectl -n "${ARGOCD_NAMESPACE}" rollout restart deployment argocd-repo-server
-    if ! kubectl -n "${ARGOCD_NAMESPACE}" rollout status deployment argocd-repo-server --timeout=600s; then
-        local updated_replicas ready_replicas
-        updated_replicas="$(kubectl -n "${ARGOCD_NAMESPACE}" get deployment argocd-repo-server -o jsonpath='{.status.updatedReplicas}' 2>/dev/null || true)"
-        ready_replicas="$(kubectl -n "${ARGOCD_NAMESPACE}" get deployment argocd-repo-server -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)"
-        updated_replicas="${updated_replicas:-0}"
-        ready_replicas="${ready_replicas:-0}"
-
-        echo "argocd-repo-server rollout timed out (updated=${updated_replicas}, ready=${ready_replicas})."
-        if [[ "${updated_replicas}" -ge 1 && "${ready_replicas}" -ge 1 ]]; then
-            echo "Proceeding: updated and ready replica exists; old replica termination is delayed."
-            return 0
-        fi
-
-        local latest_repo_server_pod
-        echo "Collecting diagnostics..."
-        kubectl -n "${ARGOCD_NAMESPACE}" get pods -l app.kubernetes.io/name=argocd-repo-server -o wide || true
-        kubectl -n "${ARGOCD_NAMESPACE}" describe deployment argocd-repo-server || true
-        latest_repo_server_pod="$(kubectl -n "${ARGOCD_NAMESPACE}" get pods -l app.kubernetes.io/name=argocd-repo-server --sort-by=.metadata.creationTimestamp -o name | tail -n 1 | cut -d/ -f2)"
-        if [[ -n "${latest_repo_server_pod}" ]]; then
-            kubectl -n "${ARGOCD_NAMESPACE}" describe pod "${latest_repo_server_pod}" || true
-            kubectl -n "${ARGOCD_NAMESPACE}" logs "${latest_repo_server_pod}" -c install-sops-and-ksops --tail=200 || true
-            kubectl -n "${ARGOCD_NAMESPACE}" logs "${latest_repo_server_pod}" -c repo-server --tail=200 || true
-        fi
+    if [[ -z "${latest_pod}" ]]; then
+        echo "No repo-server pod found." >&2
         return 1
     fi
+
+    if kubectl -n "${ARGOCD_NAMESPACE}" exec "${latest_pod}" -c repo-server -- \
+        test -x /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops/ksops 2>/dev/null; then
+        echo "KSOPS binary is present in ${latest_pod}."
+        return 0
+    fi
+
+    echo "KSOPS binary is missing. Init container logs:" >&2
+    kubectl -n "${ARGOCD_NAMESPACE}" logs "${latest_pod}" -c install-sops-and-ksops --tail=100 || true
+    echo "Repo-server logs (last 50 lines):" >&2
+    kubectl -n "${ARGOCD_NAMESPACE}" logs "${latest_pod}" -c repo-server --tail=50 || true
+    return 1
 }
 
 # Print Argo CD UI/login details for local access.
@@ -345,12 +268,13 @@ install_argo_cd() {
     fi
     helm repo update >/dev/null 2>&1
 
+    local argocd_values="${SCRIPT_DIR}/argocd/values/argocd-values.yaml"
     echo "Installing/upgrading Argo CD via Helm (chart version ${ARGOCD_CHART_VERSION})..."
     helm upgrade --install "${ARGOCD_RELEASE_NAME}" argo/argo-cd \
       --namespace "${ARGOCD_NAMESPACE}" \
       --version "${ARGOCD_CHART_VERSION}" \
-      --set configs.params."server\.insecure"="true" \
       --set server.service.type="ClusterIP" \
+      -f "${argocd_values}" \
       --wait --timeout 10m
 
     echo "Waiting for Argo CD CRDs and pods..."
@@ -358,7 +282,7 @@ install_argo_cd() {
     kubectl wait --for=condition=Established crd/appprojects.argoproj.io --timeout=120s
     wait_for_argocd_workloads
 
-    configure_repo_server_sops
+    verify_repo_server_sops
 
     echo "Creating fallback Argo CD NodePort (http://localhost:${ARGOCD_SERVER_PORT})..."
     kubectl apply -f "${SCRIPT_DIR}/argocd/access/argocd/nodeport-service.yaml" -n "${ARGOCD_NAMESPACE}"

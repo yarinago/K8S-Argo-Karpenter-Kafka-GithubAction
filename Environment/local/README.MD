@@ -117,11 +117,22 @@ Only recreate the cluster if you manually changed the k3d flags and want to retu
 ## Verification
 
 ```sh
+# Argo CD secrets and config
 kubectl -n argocd get secret sops-age
-kubectl -n argocd get deploy argocd-repo-server
-kubectl -n argocd get deploy argocd-repo-server -o jsonpath='{.spec.template.spec.containers[?(@.name=="repo-server")].env[?(@.name=="SOPS_AGE_KEY_FILE")].value}'; echo
 kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.kustomize\.buildOptions}'; echo
+
+# Confirm the repo-server has the KSOPS binary (installed by the Helm-managed init container)
+kubectl -n argocd exec deploy/argocd-repo-server -c repo-server -- \
+  ls -la /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops/ksops
+
+# Init container logs if the binary is missing
 kubectl -n argocd logs deploy/argocd-repo-server -c install-sops-and-ksops --tail=100
+
+# Confirm SOPS_AGE_KEY_FILE env var is set
+kubectl -n argocd get deploy argocd-repo-server \
+  -o jsonpath='{.spec.template.spec.containers[?(@.name=="repo-server")].env[?(@.name=="SOPS_AGE_KEY_FILE")].value}'; echo
+
+# Kafka and monitoring resources
 kubectl get kafkatopics -A
 kubectl get kafka -A
 kubectl get podmonitors -A | grep splitwise
