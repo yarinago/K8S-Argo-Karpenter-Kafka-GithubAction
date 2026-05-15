@@ -32,3 +32,27 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  # Grafana and Prometheus generate secrets at install time (admin password,
+  # webhook certs). Their contents are never in Git so Argo CD always sees a
+  # diff. Ignore the data fields to stop the permanent OutOfSync noise.
+  # The Grafana Deployment carries a checksum/secret annotation that mirrors
+  # the secret hash — it drifts whenever the secret data differs, so ignore it too.
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: monitoring-grafana
+      namespace: monitoring
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: Secret
+      name: monitoring-kube-prometheus-st-admission
+      namespace: monitoring
+      jsonPointers:
+        - /data
+    - group: apps
+      kind: Deployment
+      name: monitoring-grafana
+      namespace: monitoring
+      jqPathExpressions:
+        - .metadata.annotations["checksum/secret"]
