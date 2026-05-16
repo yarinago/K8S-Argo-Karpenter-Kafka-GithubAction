@@ -1,5 +1,35 @@
 ﻿alertmanager:
-  enabled: false
+  enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - alertmanager.localtest.me
+    paths:
+      - /
+    pathType: Prefix
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'null'
+      routes:
+        # Watchdog is a always-firing heartbeat alert — sink it so the UI stays clean.
+        - matchers:
+            - alertname = "Watchdog"
+          receiver: 'null'
+    receivers:
+      - name: 'null'
+    inhibit_rules:
+      - source_matchers:
+          - severity = critical
+        target_matchers:
+          - severity = warning
+        equal: ['alertname', 'namespace', 'pod']
 
 grafana:
   defaultDashboardsEnabled: false
