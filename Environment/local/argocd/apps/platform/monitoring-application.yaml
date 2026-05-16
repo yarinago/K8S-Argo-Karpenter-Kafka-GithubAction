@@ -32,6 +32,9 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      # Stops Argo CD from writing ignored fields (e.g. checksum/secret) during
+      # sync, which would otherwise trigger a Deployment rollout every cycle.
+      - RespectIgnoreDifferences=true
   # Grafana and Prometheus generate secrets at install time (admin password,
   # webhook certs). Their contents are never in Git so Argo CD always sees a
   # diff. Ignore the data fields to stop the permanent OutOfSync noise.

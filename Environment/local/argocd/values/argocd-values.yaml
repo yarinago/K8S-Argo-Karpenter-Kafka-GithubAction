@@ -10,6 +10,14 @@ configs:
   cm:
     # Allow Kustomize exec plugins (required for KSOPS).
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+    # Traefik runs as a DaemonSet with hostPort — it never gets a LoadBalancer IP,
+    # so status.loadBalancer.ingress stays empty and Argo CD would mark every
+    # Ingress as Progressing forever. This Lua override returns Healthy immediately.
+    resource.customizations.health.networking.k8s.io_Ingress: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "Ingress is healthy"
+      return hs
 
 repoServer:
   # Extra volumes shared between the init container and the repo-server container.
