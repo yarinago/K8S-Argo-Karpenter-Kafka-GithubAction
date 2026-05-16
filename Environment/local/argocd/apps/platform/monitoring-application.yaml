@@ -57,5 +57,5 @@ spec:
       kind: Deployment
       name: monitoring-grafana
       namespace: monitoring
-      jqPathExpressions:
-        - .metadata.annotations["checksum/secret"]
+      jsonPointers:
+        - /spec/template/metadata/annotations/checksum~1secret
