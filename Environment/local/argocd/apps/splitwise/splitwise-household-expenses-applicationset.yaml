@@ -41,10 +41,16 @@ spec:
         link.argocd.argoproj.io/app: "{{url}}"
     spec:
       project: splitwise-household-expenses
-      source:
-        repoURL: https://github.com/yarinago/splitwise-household-expenses.git
-        targetRevision: "{{revision}}"
-        path: "{{path}}"
+      sources:
+        # Source 1: Splitwise app repo — web Deployment, Service, ConfigMap, Ingress.
+        - repoURL: https://github.com/yarinago/splitwise-household-expenses.git
+          targetRevision: "{{revision}}"
+          path: "{{path}}"
+        # Source 2: GitOps repo runtime overlay — Kafka cluster, topic, producer Deployment,
+        # and the merged web+consumer Deployment (overwrites Source 1's web-only Deployment).
+        - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+          targetRevision: feature/create-kafka
+          path: "Environment/local/argocd/apps/splitwise/runtime/{{env}}"
       destination:
         server: https://kubernetes.default.svc
         namespace: "{{namespace}}"
@@ -53,5 +59,5 @@ spec:
           prune: true
           selfHeal: true
         syncOptions:
-          # Create the destination namespace if it is missing.
           - CreateNamespace=true
+          - ServerSideApply=true
