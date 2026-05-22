@@ -2,12 +2,12 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: strimzi-operator
+  name: kafka-strimzi
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
-  project: local-platform
+  project: argocd-bootstrap
   sources:
     - repoURL: https://strimzi.io/charts/
       chart: strimzi-kafka-operator
@@ -21,7 +21,7 @@ spec:
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: strimzi-system
+    namespace: infrastructure
   syncPolicy:
     automated:
       prune: true

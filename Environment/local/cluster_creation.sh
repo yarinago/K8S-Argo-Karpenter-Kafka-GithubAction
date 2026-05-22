@@ -28,7 +28,7 @@ AGE_VERSION="${AGE_VERSION:-v1.2.1}"
 GITOPS_REPO_URL="${GITOPS_REPO_URL:-}"
 GITOPS_REPO_REVISION="${GITOPS_REPO_REVISION:-}"
 ARGOCD_ROOT_APP_NAME="${ARGOCD_ROOT_APP_NAME:-platform-root}"
-ARGOCD_ROOT_APP_PROJECT="${ARGOCD_ROOT_APP_PROJECT:-local-platform}"
+ARGOCD_ROOT_APP_PROJECT="${ARGOCD_ROOT_APP_PROJECT:-argocd-bootstrap}"
 ARGOCD_ROOT_APP_PATH="${ARGOCD_ROOT_APP_PATH:-Environment/local/argocd/apps}"
 
 # Install required local dependencies only when missing.
@@ -288,10 +288,20 @@ install_argo_cd() {
     kubectl apply -f "${SCRIPT_DIR}/argocd/access/argocd/nodeport-service.yaml" -n "${ARGOCD_NAMESPACE}"
 }
 
-# Create the custom AppProject used by the root app and local platform child apps.
+# Create the infrastructure namespace used by traefik, monitoring, and strimzi.
+create_infrastructure_namespace() {
+    if ! kubectl get namespace infrastructure &>/dev/null; then
+        echo "Creating 'infrastructure' namespace..."
+        kubectl create namespace infrastructure
+    else
+        echo "Namespace 'infrastructure' already exists. Skipping."
+    fi
+}
+
+# Create the custom AppProject used by the root app and infrastructure child apps.
 bootstrap_root_project() {
     echo "Bootstrapping Argo CD project '${ARGOCD_ROOT_APP_PROJECT}'..."
-    kubectl apply -f "${SCRIPT_DIR}/argocd/apps/platform/local-platform-project.yaml"
+    kubectl apply -f "${SCRIPT_DIR}/argocd/apps/infrastructure/argo-cd/argocd-bootstrap-project.yaml"
 }
 
 # Create the root Argo CD app that bootstraps child applications.
@@ -344,6 +354,7 @@ main() {
     fi
 
     install_argo_cd
+    create_infrastructure_namespace
     bootstrap_root_project
     bootstrap_root_application
 

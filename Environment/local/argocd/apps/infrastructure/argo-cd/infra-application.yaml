@@ -1,5 +1,5 @@
 # Disabled educational bootstrap example kept as a commented reference.
-# To restore it, uncomment the resource entry in apps/platform/kustomization.yaml
+# To restore it, uncomment the resource entry in apps/infrastructure/argo-cd/kustomization.yaml
 # and then convert this file back into a normal Argo CD Application manifest.
 #
 # apiVersion: argoproj.io/v1alpha1
@@ -8,7 +8,7 @@
 #   name: infra
 #   namespace: argocd
 # spec:
-#   project: local-platform
+#   project: argocd-bootstrap
 #   sources:
 #     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
 #       targetRevision: feature/create-kafka

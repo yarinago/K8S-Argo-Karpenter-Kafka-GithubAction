@@ -7,7 +7,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
-  project: local-platform
+  project: argocd-bootstrap
   sources:
     - repoURL: https://prometheus-community.github.io/helm-charts
       chart: kube-prometheus-stack
@@ -21,10 +21,10 @@ spec:
       ref: values
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
       targetRevision: feature/create-kafka
-      path: Environment/local/argocd/apps/platform/monitoring-extra
+      path: Environment/local/argocd/apps/infrastructure/monitoring/monitoring-extra
   destination:
     server: https://kubernetes.default.svc
-    namespace: monitoring
+    namespace: infrastructure
   syncPolicy:
     automated:
       prune: true
@@ -44,18 +44,18 @@ spec:
     - group: ""
       kind: Secret
       name: monitoring-grafana
-      namespace: monitoring
+      namespace: infrastructure
       jsonPointers:
         - /data
     - group: ""
       kind: Secret
       name: monitoring-kube-prometheus-st-admission
-      namespace: monitoring
+      namespace: infrastructure
       jsonPointers:
         - /data
     - group: apps
       kind: Deployment
       name: monitoring-grafana
-      namespace: monitoring
+      namespace: infrastructure
       jsonPointers:
         - /spec/template/metadata/annotations/checksum~1secret

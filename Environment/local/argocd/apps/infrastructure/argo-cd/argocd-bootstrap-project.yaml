@@ -4,7 +4,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
-  name: local-platform
+  name: argocd-bootstrap
   namespace: argocd
   annotations:
     # Create the project before Applications that reference it.
