@@ -13,6 +13,6 @@ spec:
     - port: http
       path: /metrics
       interval: 30s
-    - port: consumer-metrics
+    - port: con-metrics
       path: /metrics
       interval: 30s
