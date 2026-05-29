@@ -10,3 +10,4 @@ resources:
   - producer-podmonitor.yaml
   - runtime-podmonitor.yaml
   - kafka-exporter-podmonitor.yaml
+  - kafka-ui.yaml

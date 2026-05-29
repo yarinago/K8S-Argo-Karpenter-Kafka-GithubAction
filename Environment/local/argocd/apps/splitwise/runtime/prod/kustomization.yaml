@@ -5,6 +5,7 @@ namespace: splitwise
 
 resources:
   - ../base
+  - kafka-ui-ingress.yaml
 
 images:
   - name: ghcr.io/yarinago/splitwise-household-expenses

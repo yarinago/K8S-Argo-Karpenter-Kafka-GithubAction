@@ -2,3 +2,11 @@
 watchNamespaces:
   - splitwise-dev
   - splitwise
+
+livenessProbe:
+  initialDelaySeconds: 60
+  timeoutSeconds: 10
+
+readinessProbe:
+  initialDelaySeconds: 60
+  timeoutSeconds: 10
