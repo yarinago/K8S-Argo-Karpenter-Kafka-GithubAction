@@ -24,6 +24,36 @@ data:
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
       "links": [],
+      "templating": {
+        "list": [
+          {
+            "current": {
+              "selected": true,
+              "text": "splitwise-dev",
+              "value": "splitwise-dev"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "label": "Environment",
+            "multi": false,
+            "name": "namespace",
+            "options": [
+              {
+                "selected": true,
+                "text": "splitwise-dev",
+                "value": "splitwise-dev"
+              },
+              {
+                "selected": false,
+                "text": "splitwise",
+                "value": "splitwise"
+              }
+            ],
+            "query": "splitwise-dev,splitwise",
+            "type": "custom"
+          }
+        ]
+      },
       "panels": [
         {
           "datasource": null,
@@ -34,29 +64,13 @@ data:
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "red", "value": 0 }
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 3 }
                 ]
               },
               "unit": "short"
             },
-            "overrides": [
-              {
-                "matcher": { "id": "byName", "options": "Value" },
-                "properties": [
-                  {
-                    "id": "thresholds",
-                    "value": {
-                      "mode": "absolute",
-                      "steps": [
-                        { "color": "red", "value": null },
-                        { "color": "green", "value": 3 }
-                      ]
-                    }
-                  }
-                ]
-              }
-            ]
+            "overrides": []
           },
           "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
           "id": 1,
@@ -71,7 +85,7 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "kafka_brokers",
+              "expr": "kafka_brokers{namespace=\"$namespace\"}",
               "legendFormat": "Brokers",
               "refId": "A"
             }
@@ -84,7 +98,9 @@ data:
           "fieldConfig": {
             "defaults": {
               "color": { "mode": "thresholds" },
-              "mappings": [{ "options": { "0": { "color": "green", "index": 0, "text": "0 OK" } }, "type": "value" }],
+              "mappings": [
+                { "options": { "0": { "color": "green", "index": 0, "text": "0 OK" } }, "type": "value" }
+              ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -109,7 +125,7 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum(kafka_topic_partition_under_replicated_partition)",
+              "expr": "sum(kafka_topic_partition_under_replicated_partition{namespace=\"$namespace\"})",
               "legendFormat": "URP",
               "refId": "A"
             }
@@ -147,7 +163,7 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "max(kafka_consumergroup_members{consumergroup=\"splitwise-dashboard-materializer\"})",
+              "expr": "max(kafka_consumergroup_members{namespace=\"$namespace\", consumergroup=\"splitwise-dashboard-materializer\"})",
               "legendFormat": "Members",
               "refId": "A"
             }
@@ -184,7 +200,7 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum(kafka_topic_partition_current_offset{topic=\"splitwise.expenses.v1\"})",
+              "expr": "sum(kafka_topic_partition_current_offset{namespace=\"$namespace\", topic=\"splitwise.expenses.v1\"})",
               "legendFormat": "Total Offsets",
               "refId": "A"
             }
@@ -197,10 +213,7 @@ data:
           "fieldConfig": {
             "defaults": {
               "color": { "mode": "palette-classic" },
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 10
-              },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
               "unit": "short",
               "min": 0
             },
@@ -215,7 +228,7 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum(kafka_consumergroup_lag{consumergroup=\"splitwise-dashboard-materializer\"}) by (topic)",
+              "expr": "sum(kafka_consumergroup_lag{namespace=\"$namespace\", consumergroup=\"splitwise-dashboard-materializer\"}) by (topic)",
               "legendFormat": "{{topic}}",
               "range": true,
               "refId": "A"
@@ -229,10 +242,7 @@ data:
           "fieldConfig": {
             "defaults": {
               "color": { "mode": "palette-classic" },
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 10
-              },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
               "unit": "short",
               "min": 0
             },
@@ -247,7 +257,7 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "kafka_consumergroup_lag{consumergroup=\"splitwise-dashboard-materializer\"}",
+              "expr": "kafka_consumergroup_lag{namespace=\"$namespace\", consumergroup=\"splitwise-dashboard-materializer\"}",
               "legendFormat": "partition {{partition}}",
               "range": true,
               "refId": "A"
@@ -261,10 +271,7 @@ data:
           "fieldConfig": {
             "defaults": {
               "color": { "mode": "palette-classic" },
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 10
-              },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
               "unit": "mps",
               "min": 0
             },
@@ -279,7 +286,7 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum(rate(kafka_topic_partition_current_offset{topic=\"splitwise.expenses.v1\"}[2m])) by (topic)",
+              "expr": "sum(rate(kafka_topic_partition_current_offset{namespace=\"$namespace\", topic=\"splitwise.expenses.v1\"}[2m])) by (topic)",
               "legendFormat": "{{topic}} msg/s",
               "range": true,
               "refId": "A"
@@ -293,10 +300,7 @@ data:
           "fieldConfig": {
             "defaults": {
               "color": { "mode": "palette-classic" },
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 10
-              },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
               "unit": "short",
               "min": 0
             },
@@ -311,7 +315,7 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "kafka_topic_partition_current_offset{topic=\"splitwise.expenses.v1\"}",
+              "expr": "kafka_topic_partition_current_offset{namespace=\"$namespace\", topic=\"splitwise.expenses.v1\"}",
               "legendFormat": "partition {{partition}}",
               "range": true,
               "refId": "A"
@@ -325,10 +329,7 @@ data:
           "fieldConfig": {
             "defaults": {
               "color": { "mode": "palette-classic" },
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 10
-              },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
               "unit": "short",
               "min": 0
             },
@@ -343,7 +344,7 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "kafka_topic_partition_in_sync_replica{topic=\"splitwise.expenses.v1\"}",
+              "expr": "kafka_topic_partition_in_sync_replica{namespace=\"$namespace\", topic=\"splitwise.expenses.v1\"}",
               "legendFormat": "partition {{partition}} ISR",
               "range": true,
               "refId": "A"
@@ -357,10 +358,7 @@ data:
           "fieldConfig": {
             "defaults": {
               "color": { "mode": "palette-classic" },
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 10
-              },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
               "unit": "short",
               "min": 0
             },
@@ -375,13 +373,13 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "increase(kube_pod_container_status_restarts_total{namespace=~\"splitwise.*\"}[1h])",
-              "legendFormat": "{{namespace}}/{{pod}}",
+              "expr": "increase(kube_pod_container_status_restarts_total{namespace=\"$namespace\"}[1h])",
+              "legendFormat": "{{pod}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Pod Restarts (splitwise namespaces, last 1h)",
+          "title": "Pod Restarts (last 1h)",
           "type": "timeseries"
         }
       ],
@@ -389,12 +387,11 @@ data:
       "schemaVersion": 39,
       "style": "dark",
       "tags": ["splitwise", "kafka"],
-      "templating": { "list": [] },
       "time": { "from": "now-30m", "to": "now" },
       "timepicker": {},
       "timezone": "browser",
       "title": "Splitwise Kafka Observability",
       "uid": "splitwise-kafka-observability",
-      "version": 2,
+      "version": 3,
       "weekStart": ""
     }
