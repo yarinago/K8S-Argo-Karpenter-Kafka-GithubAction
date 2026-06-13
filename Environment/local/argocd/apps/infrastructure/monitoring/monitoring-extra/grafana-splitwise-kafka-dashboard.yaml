@@ -1,4 +1,4 @@
-﻿apiVersion: v1
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-dashboard-splitwise-kafka
@@ -22,43 +22,200 @@ data:
       },
       "editable": true,
       "fiscalYearStartMonth": 0,
-      "graphTooltip": 0,
+      "graphTooltip": 1,
       "links": [],
       "panels": [
         {
           "datasource": null,
           "fieldConfig": {
             "defaults": {
-              "color": {
-                "mode": "palette-classic"
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 0 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Value" },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "red", "value": null },
+                        { "color": "green", "value": 3 }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+          "id": 1,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "kafka_brokers",
+              "legendFormat": "Brokers",
+              "refId": "A"
+            }
+          ],
+          "title": "Kafka Brokers Online",
+          "type": "stat"
+        },
+        {
+          "datasource": null,
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [{ "options": { "0": { "color": "green", "index": 0, "text": "0 OK" } }, "type": "value" }],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
               },
               "unit": "short"
             },
             "overrides": []
           },
-          "gridPos": {
-            "h": 10,
-            "w": 16,
-            "x": 0,
-            "y": 0
-          },
-          "id": 1,
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+          "id": 2,
           "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
           },
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum(kafka_consumergroup_lag_sum{consumergroup=\"splitwise-dashboard-materializer\"}) by (topic)",
+              "expr": "sum(kafka_topic_partition_under_replicated_partition)",
+              "legendFormat": "URP",
+              "refId": "A"
+            }
+          ],
+          "title": "Under-Replicated Partitions",
+          "type": "stat"
+        },
+        {
+          "datasource": null,
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+          "id": 3,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "max(kafka_consumergroup_members{consumergroup=\"splitwise-dashboard-materializer\"})",
+              "legendFormat": "Members",
+              "refId": "A"
+            }
+          ],
+          "title": "Consumer Group Members",
+          "type": "stat"
+        },
+        {
+          "datasource": null,
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+          "id": 4,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "sum(kafka_topic_partition_current_offset{topic=\"splitwise.expenses.v1\"})",
+              "legendFormat": "Total Offsets",
+              "refId": "A"
+            }
+          ],
+          "title": "Total Messages (splitwise.expenses.v1)",
+          "type": "stat"
+        },
+        {
+          "datasource": null,
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 10
+              },
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 16, "x": 0, "y": 4 },
+          "id": 5,
+          "options": {
+            "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "sum(kafka_consumergroup_lag{consumergroup=\"splitwise-dashboard-materializer\"}) by (topic)",
               "legendFormat": "{{topic}}",
               "range": true,
               "refId": "A"
@@ -71,81 +228,173 @@ data:
           "datasource": null,
           "fieldConfig": {
             "defaults": {
-              "color": {
-                "mode": "thresholds"
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 10
               },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "orange",
-                    "value": 1
-                  },
-                  {
-                    "color": "red",
-                    "value": 5
-                  }
-                ]
-              },
-              "unit": "short"
+              "unit": "short",
+              "min": 0
             },
             "overrides": []
           },
-          "gridPos": {
-            "h": 10,
-            "w": 8,
-            "x": 16,
-            "y": 0
-          },
-          "id": 2,
+          "gridPos": { "h": 9, "w": 8, "x": 16, "y": 4 },
+          "id": 6,
           "options": {
-            "colorMode": "background",
-            "graphMode": "area",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "auto"
+            "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
           },
           "targets": [
             {
               "editorMode": "code",
-              "expr": "max(kafka_consumergroup_members{consumergroup=\"splitwise-dashboard-materializer\"})",
+              "expr": "kafka_consumergroup_lag{consumergroup=\"splitwise-dashboard-materializer\"}",
+              "legendFormat": "partition {{partition}}",
+              "range": true,
               "refId": "A"
             }
           ],
-          "title": "Consumer Group Members",
-          "type": "stat"
+          "title": "Consumer Lag By Partition",
+          "type": "timeseries"
+        },
+        {
+          "datasource": null,
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 10
+              },
+              "unit": "mps",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 13 },
+          "id": 7,
+          "options": {
+            "legend": { "calcs": ["mean", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "sum(rate(kafka_topic_partition_current_offset{topic=\"splitwise.expenses.v1\"}[2m])) by (topic)",
+              "legendFormat": "{{topic}} msg/s",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Messages Produced Per Second",
+          "type": "timeseries"
+        },
+        {
+          "datasource": null,
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 10
+              },
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 13 },
+          "id": 8,
+          "options": {
+            "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "kafka_topic_partition_current_offset{topic=\"splitwise.expenses.v1\"}",
+              "legendFormat": "partition {{partition}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Topic Partition Offsets",
+          "type": "timeseries"
+        },
+        {
+          "datasource": null,
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 10
+              },
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 22 },
+          "id": 9,
+          "options": {
+            "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "kafka_topic_partition_in_sync_replica{topic=\"splitwise.expenses.v1\"}",
+              "legendFormat": "partition {{partition}} ISR",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "In-Sync Replicas Per Partition",
+          "type": "timeseries"
+        },
+        {
+          "datasource": null,
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 10
+              },
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 22 },
+          "id": 10,
+          "options": {
+            "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "increase(kube_pod_container_status_restarts_total{namespace=~\"splitwise.*\"}[1h])",
+              "legendFormat": "{{namespace}}/{{pod}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Pod Restarts (splitwise namespaces, last 1h)",
+          "type": "timeseries"
         }
       ],
       "refresh": "30s",
       "schemaVersion": 39,
       "style": "dark",
-      "tags": [
-        "splitwise",
-        "kafka"
-      ],
-      "templating": {
-        "list": []
-      },
-      "time": {
-        "from": "now-30m",
-        "to": "now"
-      },
+      "tags": ["splitwise", "kafka"],
+      "templating": { "list": [] },
+      "time": { "from": "now-30m", "to": "now" },
       "timepicker": {},
       "timezone": "browser",
       "title": "Splitwise Kafka Observability",
       "uid": "splitwise-kafka-observability",
-      "version": 1,
+      "version": 2,
       "weekStart": ""
     }

@@ -30,6 +30,63 @@ spec:
               Consumer group {{ $labels.consumergroup }} on topic {{ $labels.topic }}
               has a lag of {{ $value }} messages — consumers may be stuck or down.
 
+        - alert: KafkaExporterDown
+          expr: absent(kafka_brokers)
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Kafka exporter is not producing metrics"
+            description: >-
+              No kafka_brokers metric received for 2 minutes.
+              The kafka-exporter pod may be down or not scraped by Prometheus.
+
+        - alert: KafkaBrokerOffline
+          expr: kafka_brokers < 3
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "A Kafka broker is offline"
+            description: >-
+              Only {{ $value }} of 3 expected Kafka brokers are online.
+
+        - alert: KafkaUnderReplicatedPartitions
+          expr: sum(kafka_topic_partition_under_replicated_partition) > 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kafka has under-replicated partitions"
+            description: >-
+              {{ $value }} partition(s) are under-replicated for more than 2 minutes.
+              Data durability may be at risk.
+
+        - alert: KafkaConsumerGroupStopped
+          expr: >-
+            (kafka_consumergroup_members{consumergroup="splitwise-dashboard-materializer"} == 0)
+            and
+            (sum(kafka_consumergroup_lag{consumergroup="splitwise-dashboard-materializer"}) > 0)
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kafka consumer group has no active members but has pending lag"
+            description: >-
+              Consumer group splitwise-dashboard-materializer has 0 members
+              but still has unprocessed messages. The consumer may be down.
+
+        - alert: KafkaISRShrunk
+          expr: kafka_topic_partition_in_sync_replica{topic="splitwise.expenses.v1"} < 3
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kafka ISR below replication factor"
+            description: >-
+              Partition {{ $labels.partition }} of topic {{ $labels.topic }} has only
+              {{ $value }} in-sync replicas (expected 3).
+
     - name: kubernetes.rules
       rules:
         - alert: PodCrashLooping
@@ -42,6 +99,33 @@ spec:
             description: >-
               Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }}
               has restarted {{ $value | printf "%.0f" }} times in the last 15 minutes.
+
+        - alert: PodNotReady
+          expr: >-
+            kube_pod_status_ready{condition="true", namespace=~"splitwise.*|infrastructure|argocd"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod has been unready for 5 minutes"
+            description: >-
+              Pod {{ $labels.namespace }}/{{ $labels.pod }} has not been ready for 5 minutes.
+
+        - alert: PodHighMemoryUsage
+          expr: >-
+            (
+              container_memory_working_set_bytes{namespace=~"splitwise.*|infrastructure", container!="", container!="POD"}
+              / on(namespace, pod, container)
+              container_spec_memory_limit_bytes{namespace=~"splitwise.*|infrastructure", container!="", container!="POD"}
+            ) > 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Container memory usage is above 90%"
+            description: >-
+              Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }}
+              is using {{ $value | humanizePercentage }} of its memory limit.
 
     - name: argocd.rules
       rules:
@@ -56,3 +140,38 @@ spec:
               Application {{ $labels.name }} in project {{ $labels.project }}
               has been OutOfSync for more than 10 minutes.
               Sync status: {{ $labels.sync_status }}.
+
+        - alert: ArgoCDAppUnhealthy
+          expr: argocd_app_info{health_status!="Healthy"} == 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Argo CD application is unhealthy"
+            description: >-
+              Application {{ $labels.name }} in project {{ $labels.project }}
+              has health status {{ $labels.health_status }} for more than 10 minutes.
+
+    - name: monitoring.rules
+      rules:
+        - alert: PrometheusTargetDown
+          expr: up == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Prometheus scrape target is down"
+            description: >-
+              Target {{ $labels.job }}/{{ $labels.instance }} has been unreachable for 5 minutes.
+              Check the corresponding PodMonitor or ServiceMonitor.
+
+        - alert: PrometheusRuleEvaluationFailed
+          expr: increase(prometheus_rule_evaluation_failures_total[5m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Prometheus rule evaluation failed"
+            description: >-
+              Prometheus failed to evaluate one or more alert rules.
+              Check Prometheus logs for expression errors.

@@ -1,5 +1,14 @@
 ﻿alertmanager:
   enabled: true
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   ingress:
     enabled: true
     ingressClassName: traefik
@@ -68,3 +77,10 @@ grafana:
 prometheus:
   prometheusSpec:
     retention: 2d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
