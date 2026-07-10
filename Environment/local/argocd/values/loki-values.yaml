@@ -35,29 +35,14 @@ promtail:
     limits:
       cpu: 100m
       memory: 128Mi
-  # Only collect logs from splitwise and infrastructure namespaces to save memory.
+  # Filter to only collect logs from relevant namespaces — appended to the
+  # default scrape config so the log file paths remain correctly configured.
   config:
     snippets:
-      pipelineStages:
-        - cri: {}
-      scrapeConfigs: |
-        - job_name: splitwise-pods
-          kubernetes_sd_configs:
-            - role: pod
-          pipeline_stages:
-            - cri: {}
-          relabel_configs:
-            - source_labels: [__meta_kubernetes_namespace]
-              regex: splitwise.*|infrastructure|argocd
-              action: keep
-            - source_labels: [__meta_kubernetes_pod_name]
-              target_label: pod
-            - source_labels: [__meta_kubernetes_namespace]
-              target_label: namespace
-            - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
-              target_label: component
-            - source_labels: [__meta_kubernetes_pod_container_name]
-              target_label: container
+      extraRelabelConfigs:
+        - action: keep
+          source_labels: [__meta_kubernetes_namespace]
+          regex: "splitwise.*|infrastructure|argocd"
 
 # We already have Grafana from kube-prometheus-stack.
 grafana:
