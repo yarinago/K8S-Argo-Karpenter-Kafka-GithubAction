@@ -381,6 +381,39 @@ data:
           ],
           "title": "Pod Restarts (last 1h)",
           "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki-splitwise"
+          },
+          "gridPos": { "h": 14, "w": 24, "x": 0, "y": 31 },
+          "id": 11,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": true,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki-splitwise"
+              },
+              "editorMode": "code",
+              "expr": "{namespace=\"$namespace\"}",
+              "legendFormat": "",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Splitwise Logs",
+          "type": "logs"
         }
       ],
       "refresh": "30s",
@@ -392,6 +425,6 @@ data:
       "timezone": "browser",
       "title": "Splitwise Kafka Observability",
       "uid": "splitwise-kafka-observability",
-      "version": 3,
+      "version": 4,
       "weekStart": ""
     }
