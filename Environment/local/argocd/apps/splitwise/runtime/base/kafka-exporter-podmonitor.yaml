@@ -8,7 +8,7 @@ spec:
   selector:
     matchLabels:
       strimzi.io/cluster: splitwise-kafka
-      app.kubernetes.io/component: kafka-exporter
+      strimzi.io/component-type: kafka-exporter
   podMetricsEndpoints:
     - targetPort: 9404
       path: /metrics
