@@ -34,6 +34,11 @@
         - matchers:
             - alertname = "Watchdog"
           receiver: 'null'
+        # k3s does not expose kube-controller-manager, kube-proxy, or kube-scheduler
+        # as scrape targets — these alerts are false positives on k3d.
+        - matchers:
+            - alertname =~ "KubeControllerManagerDown|KubeProxyDown|KubeSchedulerDown"
+          receiver: 'null'
     receivers:
       - name: 'null'
     inhibit_rules:
