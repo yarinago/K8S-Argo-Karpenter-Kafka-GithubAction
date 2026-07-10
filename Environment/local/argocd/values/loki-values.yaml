@@ -1,0 +1,64 @@
+loki:
+  enabled: true
+  persistence:
+    enabled: false
+  config:
+    compactor:
+      working_directory: /data/loki/boltdb-shipper-compactor
+      shared_store: filesystem
+      compaction_interval: 10m
+      retention_enabled: true
+      retention_delete_delay: 2h
+      retention_delete_worker_count: 150
+    limits_config:
+      retention_period: 720h   # 30 days — default (prod)
+      retention_stream:
+        - selector: '{namespace="splitwise-dev"}'
+          priority: 1
+          period: 168h          # 7 days for dev
+    chunk_store_config:
+      max_look_back_period: 720h
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+promtail:
+  enabled: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  # Only collect logs from splitwise and infrastructure namespaces to save memory.
+  config:
+    snippets:
+      pipelineStages:
+        - cri: {}
+      scrapeConfigs: |
+        - job_name: splitwise-pods
+          kubernetes_sd_configs:
+            - role: pod
+          pipeline_stages:
+            - cri: {}
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_namespace]
+              regex: splitwise.*|infrastructure|argocd
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+              target_label: component
+            - source_labels: [__meta_kubernetes_pod_container_name]
+              target_label: container
+
+# We already have Grafana from kube-prometheus-stack.
+grafana:
+  enabled: false
