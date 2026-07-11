@@ -51,6 +51,29 @@ data:
             ],
             "query": "splitwise-dev,splitwise",
             "type": "custom"
+          },
+          {
+            "allValue": ".*",
+            "current": {
+              "selected": true,
+              "text": "All",
+              "value": "$__all"
+            },
+            "hide": 0,
+            "includeAll": true,
+            "label": "Log Level",
+            "multi": false,
+            "name": "level",
+            "options": [
+              { "selected": true,  "text": "All",   "value": "$__all" },
+              { "selected": false, "text": "ERROR",  "value": "error"  },
+              { "selected": false, "text": "WARN",   "value": "warn"   },
+              { "selected": false, "text": "INFO",   "value": "info"   },
+              { "selected": false, "text": "DEBUG",  "value": "debug"  },
+              { "selected": false, "text": "FATAL",  "value": "fatal"  }
+            ],
+            "query": "error,warn,info,debug,fatal",
+            "type": "custom"
           }
         ]
       },
@@ -406,7 +429,7 @@ data:
                 "uid": "loki-splitwise"
               },
               "editorMode": "code",
-              "expr": "{namespace=\"$namespace\"}",
+              "expr": "{namespace=\"$namespace\"} |~ \"(?i)$level\"",
               "legendFormat": "",
               "queryType": "range",
               "refId": "A"
@@ -425,6 +448,6 @@ data:
       "timezone": "browser",
       "title": "Splitwise Kafka Observability",
       "uid": "splitwise-kafka-observability",
-      "version": 4,
+      "version": 5,
       "weekStart": ""
     }
