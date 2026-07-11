@@ -8,3 +8,4 @@ resources:
   - monitoring/loki-application.yaml
   - network/traefik-ingress-application.yaml
   - kafka/strimzi-operator-application.yaml
+  - argo-rollouts/argo-rollouts-application.yaml

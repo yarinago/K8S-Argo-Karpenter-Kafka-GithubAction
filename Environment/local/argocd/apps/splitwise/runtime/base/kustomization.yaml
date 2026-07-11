@@ -2,8 +2,10 @@
 kind: Kustomization
 
 resources:
-  - producer-deployment.yaml
-  - loadgen-deployment.yaml
+  - producer-rollout.yaml
+  - producer-rollout-services.yaml
+  - loadgen-rollout.yaml
+  - loadgen-rollout-services.yaml
   - kafka-cluster.yaml
   - kafka-nodepool.yaml
   - topic.yaml
