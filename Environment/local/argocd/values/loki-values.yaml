@@ -35,14 +35,18 @@ promtail:
     limits:
       cpu: 100m
       memory: 128Mi
-  # Filter to only collect logs from relevant namespaces — appended to the
-  # default scrape config so the log file paths remain correctly configured.
   config:
     snippets:
       extraRelabelConfigs:
         - action: keep
           source_labels: [__meta_kubernetes_namespace]
           regex: "splitwise.*|infrastructure|argocd"
+      pipelineStages:
+        - cri: {}
+        - regex:
+            expression: '(?:^|\s)(?P<level>TRACE|DEBUG|INFO|WARN|ERROR|FATAL|CRITICAL)(?:\s|\[|$)'
+        - labels:
+            level:
 
 # We already have Grafana from kube-prometheus-stack.
 # Disable the auto-generated datasource ConfigMap — it sets isDefault: true
