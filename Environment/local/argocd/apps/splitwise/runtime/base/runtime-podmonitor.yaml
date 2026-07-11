@@ -1,0 +1,18 @@
+﻿apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: splitwise-runtime
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: splitwise-export
+      app.kubernetes.io/component: runtime
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+    - port: con-metrics
+      path: /metrics
+      interval: 30s

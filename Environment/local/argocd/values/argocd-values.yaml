@@ -1,0 +1,138 @@
+# Argo CD Helm values for local cluster.
+# Manages KSOPS/SOPS decryption support directly in the Helm release so the
+# configuration survives every `helm upgrade` without needing a post-install
+# kubectl patch.
+
+configs:
+  params:
+    # Disable TLS on the API server; Traefik terminates TLS at the edge.
+    server.insecure: "true"
+  cm:
+    # Allow Kustomize exec plugins (required for KSOPS).
+    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+    # Traefik runs as a DaemonSet with hostPort — it never gets a LoadBalancer IP,
+    # so status.loadBalancer.ingress stays empty and Argo CD would mark every
+    # Ingress as Progressing forever. This Lua override returns Healthy immediately.
+    resource.customizations.health.networking.k8s.io_Ingress: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "Ingress is healthy"
+      return hs
+
+repoServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Extra volumes shared between the init container and the repo-server container.
+  volumes:
+    - name: custom-tools
+      emptyDir: {}
+    - name: ksops-plugin
+      emptyDir: {}
+    - name: sops-age
+      secret:
+        # Created by cluster_creation.sh before `helm upgrade --install`.
+        secretName: sops-age
+
+  # Downloads ksops and sops binaries into shared emptyDir volumes before the
+  # repo-server starts. Versions are pinned to match cluster_creation.sh defaults.
+  initContainers:
+    - name: install-sops-and-ksops
+      image: alpine:3.20
+      command: ["/bin/sh", "-ec"]
+      args:
+        - |
+          set -euo pipefail
+          apk add --no-cache curl tar
+          KSOPS_VERSION="v4.4.0"
+          SOPS_VERSION="v3.9.4"
+          mkdir -p /custom-tools /ksops-plugin/viaduct.ai/v1/ksops /tmp/ksops
+          curl -fsSL \
+            "https://github.com/viaduct-ai/kustomize-sops/releases/download/${KSOPS_VERSION}/ksops_${KSOPS_VERSION#v}_Linux_x86_64.tar.gz" \
+            -o /tmp/ksops.tgz
+          tar -xzf /tmp/ksops.tgz -C /tmp/ksops
+          mv /tmp/ksops/ksops /ksops-plugin/viaduct.ai/v1/ksops/ksops
+          chmod +x /ksops-plugin/viaduct.ai/v1/ksops/ksops
+          cp /ksops-plugin/viaduct.ai/v1/ksops/ksops /custom-tools/ksops
+          chmod +x /custom-tools/ksops
+          curl -fsSL \
+            -o /custom-tools/sops \
+            "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64"
+          chmod +x /custom-tools/sops
+      volumeMounts:
+        - name: custom-tools
+          mountPath: /custom-tools
+        - name: ksops-plugin
+          mountPath: /ksops-plugin
+
+  # Mount binaries and the age key into the running repo-server container.
+  volumeMounts:
+    - name: custom-tools
+      mountPath: /usr/local/bin/sops
+      subPath: sops
+    - name: custom-tools
+      mountPath: /usr/local/bin/ksops
+      subPath: ksops
+    - name: ksops-plugin
+      mountPath: /home/argocd/.config/kustomize/plugin
+    - name: sops-age
+      mountPath: /etc/argocd/sops-age
+      readOnly: true
+
+  env:
+    # Kustomize resolves exec plugins relative to XDG_CONFIG_HOME.
+    - name: XDG_CONFIG_HOME
+      value: /home/argocd/.config
+    # SOPS reads the age private key from this path.
+    - name: SOPS_AGE_KEY_FILE
+      value: /etc/argocd/sops-age/keys.txt
+
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+server:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+applicationSet:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+notifications:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

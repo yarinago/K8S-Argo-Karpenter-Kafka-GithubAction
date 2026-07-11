@@ -1,0 +1,39 @@
+# ServiceMonitor for the Argo CD application controller (argocd-metrics:8082).
+# Exposes app sync status, health, and reconcile duration metrics.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-application-controller
+  labels:
+    release: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - argocd
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-application-controller
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+---
+# ServiceMonitor for the Argo CD API server (argocd-server-metrics:8083).
+# Exposes request latency, gRPC call counts, and error rates.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-server
+  labels:
+    release: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - argocd
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

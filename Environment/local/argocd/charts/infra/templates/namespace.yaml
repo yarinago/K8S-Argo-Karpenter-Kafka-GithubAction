@@ -1,6 +1,6 @@
-# Helm template for the infra namespace.
-# The actual name comes from argocd/values/infra-values.yaml.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {{ .Values.namespace.name }}
+# Disabled educational Helm template kept as a commented reference.
+#
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: {{ .Values.namespace.name }}

@@ -11,10 +11,10 @@ metadata:
     # Wait until Traefik is installed before creating the ingress.
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  project: local-platform
+  project: argocd-bootstrap
   source:
     repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-    targetRevision: HEAD
+    targetRevision: feature/create-kafka
     # Folder containing the actual Ingress manifest.
     path: Environment/local/argocd/access/argocd
   destination:
