@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: argocd-bootstrap
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: loki-stack
+      targetRevision: 2.10.2
+      helm:
+        releaseName: loki
+        valueFiles:
+          - $values/Environment/local/argocd/values/loki-values.yaml
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infrastructure
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

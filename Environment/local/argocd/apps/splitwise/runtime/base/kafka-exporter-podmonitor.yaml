@@ -1,0 +1,15 @@
+﻿apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: splitwise-kafka-exporter
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      strimzi.io/cluster: splitwise-kafka
+      strimzi.io/component-type: kafka-exporter
+  podMetricsEndpoints:
+    - targetPort: 9404
+      path: /metrics
+      interval: 30s

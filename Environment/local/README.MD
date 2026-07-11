@@ -1,4 +1,4 @@
-# Local Bootstrap (k3d + Argo CD + App-of-Apps)
+﻿# Local Bootstrap (k3d + Argo CD + App-of-Apps)
 
 This folder bootstraps a local k3d cluster, installs Argo CD, and creates a root Argo CD Application (app-of-apps pattern).
 
@@ -13,15 +13,16 @@ This folder bootstraps a local k3d cluster, installs Argo CD, and creates a root
 7. Root Argo CD app (`platform-root`) that points to:
    - `Environment/local/argocd/apps`
 8. Dedicated Argo CD project `local-platform` for the root app and local platform apps
-9. Child app `infra` that points to:
-   - Helm chart: `Environment/local/argocd/charts/infra`
-   - External values file (via Argo CD multi-source): `Environment/local/argocd/values/infra-values.yaml`
+9. Commented-out placeholder `infra` example kept in the repo for reference only
 10. Child app that installs Traefik from the official Helm chart
 11. Child app that publishes the local ingress route for Argo CD
-12. Splitwise Argo resources grouped under `Environment/local/argocd/apps/splitwise`
+12. Child app that installs the Strimzi Cluster Operator
+13. Child app that installs Prometheus + Grafana for local monitoring
+14. Splitwise Argo resources grouped under `Environment/local/argocd/apps/splitwise`
     using an `AppProject` plus an `ApplicationSet` that generates the dev and prod apps
+15. Splitwise dev/prod apps that combine the application repo overlays with a local Kafka runtime layer
 
-`infra` is a placeholder infra app (Namespace + ConfigMap) so the GitOps loop is demonstrated immediately.
+The `infra` placeholder example is currently commented out and kept only as a reference.
 SOPS+age support is app-agnostic and can be reused by any app repo synced by this Argo CD instance.
 
 ## Layout
@@ -32,9 +33,9 @@ Environment/local/
     access/argocd/              # Argo CD ingress + NodePort fallback service
     apps/
       platform/                 # Local platform project + platform apps
-      splitwise/                # Splitwise AppProject + ApplicationSet
-    charts/infra/               # Local Helm chart used by the infra app
-    reference/infra-raw/        # Raw-manifest equivalent of the infra chart (reference only)
+      splitwise/                # Splitwise AppProject + ApplicationSet + Kafka runtime overlays
+    charts/infra/               # Commented-out Helm example for the placeholder infra app
+    reference/infra-raw/        # Commented-out raw-manifest equivalent of the infra chart
     values/                     # Helm values for local apps/charts
 ```
 
@@ -80,6 +81,17 @@ The Splitwise ingress for these local URLs is owned by the
 `splitwise-household-expenses` repo's `k8s/overlays/dev` and
 `k8s/overlays/prod` overlays.
 
+## Open Grafana
+
+After the monitoring app syncs, open:
+
+```text
+Grafana: http://grafana.localtest.me:8080
+```
+
+Grafana is configured for anonymous local read-only access and includes a
+`Splitwise Kafka Observability` dashboard.
+
 ## SOPS+age First Run
 
 On first run, the script:
@@ -105,11 +117,25 @@ Only recreate the cluster if you manually changed the k3d flags and want to retu
 ## Verification
 
 ```sh
+# Argo CD secrets and config
 kubectl -n argocd get secret sops-age
-kubectl -n argocd get deploy argocd-repo-server
-kubectl -n argocd get deploy argocd-repo-server -o jsonpath='{.spec.template.spec.containers[?(@.name=="repo-server")].env[?(@.name=="SOPS_AGE_KEY_FILE")].value}'; echo
 kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.kustomize\.buildOptions}'; echo
+
+# Confirm the repo-server has the KSOPS binary (installed by the Helm-managed init container)
+kubectl -n argocd exec deploy/argocd-repo-server -c repo-server -- \
+  ls -la /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops/ksops
+
+# Init container logs if the binary is missing
 kubectl -n argocd logs deploy/argocd-repo-server -c install-sops-and-ksops --tail=100
+
+# Confirm SOPS_AGE_KEY_FILE env var is set
+kubectl -n argocd get deploy argocd-repo-server \
+  -o jsonpath='{.spec.template.spec.containers[?(@.name=="repo-server")].env[?(@.name=="SOPS_AGE_KEY_FILE")].value}'; echo
+
+# Kafka and monitoring resources
+kubectl get kafkatopics -A
+kubectl get kafka -A
+kubectl get podmonitors -A | grep splitwise
 ```
 
 ## Optional Environment Variables

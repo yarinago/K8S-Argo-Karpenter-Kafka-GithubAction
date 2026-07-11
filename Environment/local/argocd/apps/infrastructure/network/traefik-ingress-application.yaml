@@ -10,7 +10,7 @@ metadata:
     # Install Traefik before ingress resources that depend on it.
     argocd.argoproj.io/sync-wave: "-1"
 spec:
-  project: local-platform
+  project: argocd-bootstrap
   sources:
     # Traefik itself comes from the upstream Helm repository.
     - repoURL: https://traefik.github.io/charts
@@ -23,12 +23,11 @@ spec:
           - $values/Environment/local/argocd/values/traefik-values.yaml
     # This source only exists so the Helm values file above can be loaded via $values.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-      targetRevision: HEAD
+      targetRevision: main
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    # Dedicated namespace for the ingress controller.
-    namespace: traefik
+    namespace: infrastructure
   syncPolicy:
     automated:
       prune: true

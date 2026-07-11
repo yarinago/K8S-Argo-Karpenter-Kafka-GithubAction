@@ -1,0 +1,30 @@
+# Disabled educational bootstrap example kept as a commented reference.
+# To restore it, uncomment the resource entry in apps/infrastructure/argo-cd/kustomization.yaml
+# and then convert this file back into a normal Argo CD Application manifest.
+#
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: infra
+#   namespace: argocd
+# spec:
+#   project: argocd-bootstrap
+#   sources:
+#     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+#       targetRevision: feature/create-kafka
+#       path: Environment/local/argocd/charts/infra
+#       helm:
+#         valueFiles:
+#           - $values/Environment/local/argocd/values/infra-values.yaml
+#     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+#       targetRevision: feature/create-kafka
+#       ref: values
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: infra-system
+#   syncPolicy:
+#     automated:
+#       prune: true
+#       selfHeal: true
+#     syncOptions:
+#       - CreateNamespace=true

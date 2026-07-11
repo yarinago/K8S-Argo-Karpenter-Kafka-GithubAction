@@ -1,0 +1,48 @@
+﻿apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: splitwise-kafka
+  annotations:
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+    config:
+      auto.create.topics.enable: false
+      default.replication.factor: 3
+      min.insync.replicas: 2
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+    template:
+      pod:
+        metadata:
+          labels:
+            app.kubernetes.io/name: splitwise-kafka
+            app.kubernetes.io/part-of: splitwise-household-expenses
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+  kafkaExporter:
+    topicRegex: ".*"
+    groupRegex: ".*"
+    showAllOffsets: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    template:
+      pod:
+        metadata:
+          labels:
+            app.kubernetes.io/name: splitwise-kafka
+            app.kubernetes.io/part-of: splitwise-household-expenses
+            app.kubernetes.io/component: kafka-exporter

@@ -1,5 +1,6 @@
-# Namespace used by the placeholder local infra app.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: infra-system
+# Disabled educational raw-manifest reference kept as comments.
+#
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: infra-system
