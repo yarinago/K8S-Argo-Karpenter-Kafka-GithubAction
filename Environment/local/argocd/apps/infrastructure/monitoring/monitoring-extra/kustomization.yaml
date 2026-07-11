@@ -7,4 +7,3 @@ resources:
   - grafana-splitwise-kafka-dashboard.yaml
   - kafka-alert-rules.yaml
   - argocd-servicemonitor.yaml
-  - grafana-datasource-loki.yaml

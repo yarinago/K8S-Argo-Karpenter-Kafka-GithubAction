@@ -67,6 +67,15 @@ grafana:
       org_role: Viewer
     auth:
       disable_login_form: true
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki-splitwise
+      url: http://loki:3100
+      access: proxy
+      isDefault: false
+      jsonData:
+        maxLines: 1000
   sidecar:
     dashboards:
       enabled: true

@@ -45,5 +45,11 @@ promtail:
           regex: "splitwise.*|infrastructure|argocd"
 
 # We already have Grafana from kube-prometheus-stack.
+# Disable the auto-generated datasource ConfigMap — it sets isDefault: true
+# which conflicts with Prometheus. Loki is added via additionalDataSources
+# in monitoring-values.yaml instead.
 grafana:
   enabled: false
+  sidecar:
+    datasources:
+      enabled: false
