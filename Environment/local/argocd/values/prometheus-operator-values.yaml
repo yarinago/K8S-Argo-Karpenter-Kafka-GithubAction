@@ -1,0 +1,19 @@
+# Only the CRDs and the operator. Prometheus, Alertmanager, Grafana,
+# kube-state-metrics, and node-exporter are installed by sibling Applications
+# as separate Helm releases of this same chart.
+crds:
+  enabled: true
+
+prometheusOperator:
+  enabled: true
+
+prometheus:
+  enabled: false
+alertmanager:
+  enabled: false
+grafana:
+  enabled: false
+kubeStateMetrics:
+  enabled: false
+nodeExporter:
+  enabled: false

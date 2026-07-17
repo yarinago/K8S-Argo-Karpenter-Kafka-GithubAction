@@ -4,8 +4,6 @@ kind: Kustomization
 resources:
   - argo-cd/argocd-bootstrap-project.yaml
   - argo-cd/argocd-local-access-application.yaml
-  - monitoring/monitoring-application.yaml
-  - monitoring/loki-application.yaml
   - network/traefik-ingress-application.yaml
   - kafka/strimzi-operator-application.yaml
   - argo-rollouts/argo-rollouts-application.yaml

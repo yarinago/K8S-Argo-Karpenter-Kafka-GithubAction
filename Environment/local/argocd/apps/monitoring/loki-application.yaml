@@ -6,7 +6,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  project: argocd-bootstrap
+  project: monitoring
   sources:
     - repoURL: https://grafana.github.io/helm-charts
       chart: loki-stack

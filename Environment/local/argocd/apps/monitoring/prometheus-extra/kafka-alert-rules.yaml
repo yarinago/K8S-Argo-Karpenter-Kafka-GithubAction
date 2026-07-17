@@ -3,7 +3,7 @@ kind: PrometheusRule
 metadata:
   name: splitwise-kafka-alerts
   labels:
-    release: monitoring
+    release: prometheus
 spec:
   groups:
     - name: kafka.rules

@@ -4,7 +4,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  # Infrastructure apps (ingress, monitoring, kafka operator, argo-cd bootstrap).
+  # Infrastructure apps (ingress, kafka operator, argo-cd bootstrap).
   - infrastructure
+  # Monitoring project: Prometheus Operator, Prometheus, Alertmanager, Grafana, Loki.
+  - monitoring
   # Groups Splitwise-specific Argo resources under one directory.
   - splitwise

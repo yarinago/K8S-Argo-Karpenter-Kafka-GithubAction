@@ -1,0 +1,38 @@
+# Argo CD Application that installs Prometheus, kube-state-metrics, and
+# node-exporter. CRDs and the operator come from the prometheus-operator
+# Application (sync-wave -1), which must land first.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: monitoring
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 80.13.3
+      helm:
+        releaseName: prometheus
+        valueFiles:
+          - $values/Environment/local/argocd/values/prometheus-values.yaml
+    # This source only exists so the Helm values file above can be loaded via $values.
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: feature/use-rollout-and-blue-green
+      ref: values
+    # PrometheusRule/ServiceMonitor resources owned by Prometheus.
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: feature/use-rollout-and-blue-green
+      path: Environment/local/argocd/apps/monitoring/prometheus-extra
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infrastructure
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

@@ -1,0 +1,56 @@
+# CRDs and the operator come from the prometheus-operator Application; do not
+# reinstall them here to avoid two releases fighting over the same resources.
+# Grafana itself has no dependency on the operator or its CRDs.
+crds:
+  enabled: false
+prometheusOperator:
+  enabled: false
+prometheus:
+  enabled: false
+alertmanager:
+  enabled: false
+kubeStateMetrics:
+  enabled: false
+nodeExporter:
+  enabled: false
+
+grafana:
+  enabled: true
+  defaultDashboardsEnabled: false
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      argocd.argoproj.io/ignore-healthcheck: "true"
+      argocd.argoproj.io/ignore-default-links: "true"
+      link.argocd.argoproj.io/external-link: http://grafana.localtest.me:8080
+    hosts:
+      - grafana.localtest.me
+    path: /
+    pathType: Prefix
+  grafana.ini:
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+    auth:
+      disable_login_form: true
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki-splitwise
+      url: http://loki:3100
+      access: proxy
+      isDefault: false
+      jsonData:
+        maxLines: 1000
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+      label: grafana_datasource
+      labelValue: "1"
+      searchNamespace: ALL

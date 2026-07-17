@@ -1,0 +1,33 @@
+# Argo CD Application that installs Alertmanager. CRDs and the operator come
+# from the prometheus-operator Application (sync-wave -1), which must land first.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alertmanager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: monitoring
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 80.13.3
+      helm:
+        releaseName: alertmanager
+        valueFiles:
+          - $values/Environment/local/argocd/values/alertmanager-values.yaml
+    # This source only exists so the Helm values file above can be loaded via $values.
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: feature/use-rollout-and-blue-green
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infrastructure
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
