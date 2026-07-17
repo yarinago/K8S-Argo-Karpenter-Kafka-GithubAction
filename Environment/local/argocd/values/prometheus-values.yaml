@@ -14,6 +14,20 @@ kubeStateMetrics:
 nodeExporter:
   enabled: true
 
+# k3d does not expose these control-plane components as scrape targets, and
+# the chart would otherwise create Service/ServiceMonitor proxies for them in
+# kube-system, which the monitoring AppProject doesn't permit.
+kubeControllerManager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+coreDns:
+  enabled: false
+
 prometheus:
   enabled: true
   ingress:
