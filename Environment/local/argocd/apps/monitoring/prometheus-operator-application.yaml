@@ -39,7 +39,7 @@ spec:
   ignoreDifferences:
     - group: ""
       kind: Secret
-      name: prometheus-operator-kube-prometheus-admission
+      name: prometheus-operator-kube-p-admission
       namespace: infrastructure
       jsonPointers:
         - /data
