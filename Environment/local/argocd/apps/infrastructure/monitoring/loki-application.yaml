@@ -16,7 +16,7 @@ spec:
         valueFiles:
           - $values/Environment/local/argocd/values/loki-values.yaml
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-      targetRevision: feature/create-kafka
+      targetRevision: feature/use-rollout-and-blue-green
       ref: values
   destination:
     server: https://kubernetes.default.svc

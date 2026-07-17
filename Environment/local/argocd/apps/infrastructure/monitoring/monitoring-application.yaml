@@ -17,10 +17,10 @@ spec:
         valueFiles:
           - $values/Environment/local/argocd/values/monitoring-values.yaml
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-      targetRevision: feature/create-kafka
+      targetRevision: feature/use-rollout-and-blue-green
       ref: values
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-      targetRevision: feature/create-kafka
+      targetRevision: feature/use-rollout-and-blue-green
       path: Environment/local/argocd/apps/infrastructure/monitoring/monitoring-extra
   destination:
     server: https://kubernetes.default.svc
