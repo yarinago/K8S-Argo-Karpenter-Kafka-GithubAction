@@ -57,29 +57,6 @@ grafana:
       isDefault: false
       jsonData:
         maxLines: 1000
-    # The chart always auto-generates "Prometheus"/"Alertmanager" datasources
-    # (uid: prometheus / alertmanager) pointing at {release}-kube-prometheus-st-*,
-    # assuming Prometheus/Alertmanager are installed by this same release. Since
-    # they're separate releases here, override those two by uid with the real
-    # service hostnames — Grafana's file provisioning applies entries in order,
-    # so a later entry with the same uid replaces the earlier one.
-    - name: Prometheus
-      type: prometheus
-      uid: prometheus
-      url: http://prometheus-kube-prometheus-prometheus.infrastructure:9090/
-      access: proxy
-      isDefault: true
-      jsonData:
-        httpMethod: POST
-        timeInterval: 30s
-    - name: Alertmanager
-      type: alertmanager
-      uid: alertmanager
-      url: http://alertmanager-kube-promethe-alertmanager.infrastructure:9093/
-      access: proxy
-      jsonData:
-        handleGrafanaManagedAlerts: false
-        implementation: prometheus
   sidecar:
     dashboards:
       enabled: true
@@ -91,3 +68,12 @@ grafana:
       label: grafana_datasource
       labelValue: "1"
       searchNamespace: ALL
+      # The chart's built-in Prometheus/Alertmanager datasources assume those
+      # components are installed by this same release (defaults to
+      # {release}-kube-prometheus-st-*). Since they're separate releases here
+      # (prometheus, alertmanager), point these at the real service hostnames.
+      isDefaultDatasource: true
+      url: http://prometheus-kube-prometheus-prometheus.infrastructure:9090/
+      alertmanager:
+        enabled: true
+        url: http://alertmanager-kube-promethe-alertmanager.infrastructure:9093/
