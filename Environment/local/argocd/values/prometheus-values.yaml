@@ -51,6 +51,15 @@ prometheus:
     # label, same as the pod/service monitor selectors above.
     ruleSelector: {}
     ruleNamespaceSelector: {}
+    # The chart only auto-wires this Prometheus to an Alertmanager when
+    # alertmanager.enabled is true (i.e. same release). Since Alertmanager is
+    # a separate release here, point at it explicitly or Prometheus silently
+    # fires alerts to nowhere and Alertmanager always shows "no alerts found".
+    alertingEndpoints:
+      - namespace: infrastructure
+        name: alertmanager-kube-promethe-alertmanager
+        port: http-web
+        apiVersion: v2
     resources:
       requests:
         cpu: 100m
