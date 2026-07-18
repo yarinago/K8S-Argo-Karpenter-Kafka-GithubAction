@@ -43,12 +43,21 @@ prometheus:
     pathType: Prefix
   prometheusSpec:
     retention: 2d
+    # An empty {} selector is falsy in the chart's Go templates, so it falls
+    # through to the *SelectorNilUsesHelmValues branch (default true), which
+    # silently restricts discovery to resources labeled release: prometheus
+    # instead of matching everything. Set these false so the {} selectors
+    # below actually take effect and pick up PodMonitors/ServiceMonitors from
+    # other repos (e.g. Splitwise's) that don't carry that label.
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
     podMonitorSelector: {}
     podMonitorNamespaceSelector: {}
     serviceMonitorSelector: {}
     serviceMonitorNamespaceSelector: {}
-    # Select PrometheusRules across all namespaces regardless of release
-    # label, same as the pod/service monitor selectors above.
     ruleSelector: {}
     ruleNamespaceSelector: {}
     # The chart only auto-wires this Prometheus to an Alertmanager when
