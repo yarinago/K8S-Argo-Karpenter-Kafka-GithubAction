@@ -4,6 +4,9 @@ metadata:
   name: splitwise-producer
 spec:
   replicas: 1
+  # Overridden higher in prod for rollback depth; dev keeps this default
+  # since it's disposable and fast-moving.
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app.kubernetes.io/name: splitwise-export

@@ -407,11 +407,69 @@ data:
           "type": "timeseries"
         },
         {
+          "datasource": null,
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 31 },
+          "id": 12,
+          "options": {
+            "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "CPU Usage (cores)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": null,
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "unit": "bytes",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 31 },
+          "id": 13,
+          "options": {
+            "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}) by (pod)",
+              "legendFormat": "{{pod}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Memory Usage (working set)",
+          "type": "timeseries"
+        },
+        {
           "datasource": {
             "type": "loki",
             "uid": "loki-splitwise"
           },
-          "gridPos": { "h": 14, "w": 24, "x": 0, "y": 31 },
+          "gridPos": { "h": 14, "w": 24, "x": 0, "y": 40 },
           "id": 11,
           "options": {
             "dedupStrategy": "none",
@@ -449,6 +507,6 @@ data:
       "timezone": "browser",
       "title": "Splitwise Kafka Observability",
       "uid": "splitwise-kafka-observability",
-      "version": 6,
+      "version": 7,
       "weekStart": ""
     }
