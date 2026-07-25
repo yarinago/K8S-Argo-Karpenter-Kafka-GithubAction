@@ -1,3 +1,5 @@
+# Environment-specific: namespace and hostname differ from the dev copy of
+# this file, everything else is identical.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

@@ -1,3 +1,5 @@
+# The controller itself is lightweight — it just watches Rollout objects and
+# reconciles ReplicaSets/Services, no chart rendering or heavy state.
 controller:
   resources:
     requests:
@@ -7,6 +9,9 @@ controller:
       cpu: 200m
       memory: 128Mi
 
+# Web UI for watching/promoting/aborting in-flight Rollouts — the primary
+# way to interact with the Splitwise producer/loadgen blue-green rollouts
+# without needing the kubectl argo rollouts CLI plugin installed.
 dashboard:
   enabled: true
   ingress:

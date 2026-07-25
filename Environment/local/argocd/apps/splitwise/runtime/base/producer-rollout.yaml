@@ -1,3 +1,5 @@
+# Argo Rollouts Rollout, not a plain Deployment — required to get blue-green
+# semantics. See Local-Argo-Rollouts / Local-Splitwise-Runtime-App on the wiki.
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
@@ -15,8 +17,13 @@ spec:
     blueGreen:
       activeService: splitwise-producer-active
       previewService: splitwise-producer-preview
+      # Every new version stops as an unpromoted "preview" until manually
+      # promoted (dashboard or `kubectl argo rollouts promote`). The old
+      # version keeps serving "active" traffic untouched the whole time.
       autoPromotionEnabled: false
       previewReplicaCount: 1
+      # How long the old ReplicaSet is kept running (in case of an
+      # immediate abort/rollback) after a promote before it's scaled down.
       scaleDownDelaySeconds: 30
   template:
     metadata:
@@ -51,11 +58,15 @@ spec:
             - name: SPLITWISE_LOAD_DOTENV
               value: "0"
           envFrom:
+            # splitwise-export-config/-secrets are owned by the app repo's
+            # own overlay, not this repo — this Rollout just references them.
             - configMapRef:
                 name: splitwise-export-config
             - secretRef:
                 name: splitwise-export-secrets
           volumeMounts:
+            # readOnlyRootFilesystem below means anything the process writes
+            # has to go here instead of the container's own filesystem.
             - name: tmp
               mountPath: /tmp
           securityContext:

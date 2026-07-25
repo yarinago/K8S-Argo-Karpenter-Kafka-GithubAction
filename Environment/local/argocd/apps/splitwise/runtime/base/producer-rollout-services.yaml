@@ -1,3 +1,8 @@
+# Both Services select the same pod labels — the Rollout controller is what
+# actually decides which ReplicaSet's pods each one's endpoints point at
+# (flipping "active" to the new version happens on promote; "preview" always
+# points at whatever's being rolled out next). These Service objects
+# themselves never change.
 apiVersion: v1
 kind: Service
 metadata:

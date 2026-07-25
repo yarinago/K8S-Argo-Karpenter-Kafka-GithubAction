@@ -1,3 +1,5 @@
+# Same pattern as producer-rollout-services.yaml: the Rollout controller
+# decides which ReplicaSet's pods "active" vs "preview" point at.
 apiVersion: v1
 kind: Service
 metadata:

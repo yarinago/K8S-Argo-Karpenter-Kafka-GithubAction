@@ -1,8 +1,14 @@
+# Synthetic load generator, kept scaled to 0 by default (see replicas
+# below) — turned on deliberately to generate demo/test traffic, not
+# running continuously. Same blue-green shape as producer-rollout.yaml.
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
   name: splitwise-loadgen
 spec:
+  # 0 by default. previewReplicaCount is intentionally unset (unlike
+  # producer-rollout.yaml), so preview also defaults to 0 unless someone
+  # scales this Rollout up by hand.
   replicas: 0
   # Overridden higher in prod for rollback depth; dev keeps this default
   # since it's disposable and fast-moving.
@@ -47,6 +53,8 @@ spec:
               value: splitwise-kafka-kafka-bootstrap:9092
             - name: KAFKA_TOPIC
               value: splitwise.expenses.v1
+            # Synthetic load shape — tune these if you need more/less
+            # pressure on the cluster for a demo.
             - name: KAFKA_LOADGEN_MESSAGES_PER_SECOND
               value: "1500"
             - name: KAFKA_LOADGEN_PAYLOAD_BYTES

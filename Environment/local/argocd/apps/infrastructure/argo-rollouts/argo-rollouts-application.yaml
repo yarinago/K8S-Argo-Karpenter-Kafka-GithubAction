@@ -1,9 +1,14 @@
+# Argo CD Application that installs the Argo Rollouts controller + dashboard.
+# Splitwise's producer/loadgen use this for blue-green deployments — this
+# Application only installs the controller, not those Rollouts themselves.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: argo-rollouts
   namespace: argocd
   annotations:
+    # Early wave: Rollout custom resources (created elsewhere) need this
+    # controller's CRDs to exist first.
     argocd.argoproj.io/sync-wave: "-1"
 spec:
   project: argocd-bootstrap
@@ -15,6 +20,7 @@ spec:
         releaseName: argo-rollouts
         valueFiles:
           - $values/Environment/local/argocd/values/argo-rollouts-values.yaml
+    # This source only exists so the Helm values file above can be loaded via $values.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
       targetRevision: feature/use-rollout-and-blue-green
       ref: values

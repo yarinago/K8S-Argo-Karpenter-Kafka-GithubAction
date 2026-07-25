@@ -1,3 +1,9 @@
+# NOT currently applied — deliberately excluded from this directory's
+# kustomization.yaml resources list. Kept as reference only. The actual
+# Loki datasource is delivered via additionalDataSources directly in
+# grafana-values.yaml, which renders the same config into Grafana's
+# provisioning without needing a separately-watched ConfigMap. Wiring this
+# one in too would just create a duplicate Loki datasource.
 apiVersion: v1
 kind: ConfigMap
 metadata:

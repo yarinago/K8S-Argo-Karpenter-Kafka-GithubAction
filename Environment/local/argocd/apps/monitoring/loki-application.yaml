@@ -1,9 +1,15 @@
+# Argo CD Application that installs Loki + Promtail (log aggregation) via the
+# loki-stack chart — a different chart from the other 4 monitoring
+# Applications, which all install kube-prometheus-stack. See
+# monitoring-project.yaml for why monitoring is split into 5 Applications.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: loki
   namespace: argocd
   annotations:
+    # No CRD dependency on the Prometheus Operator, so this can sync after
+    # the wave-0 apps without blocking on them.
     argocd.argoproj.io/sync-wave: "1"
 spec:
   project: monitoring
@@ -15,6 +21,7 @@ spec:
         releaseName: loki
         valueFiles:
           - $values/Environment/local/argocd/values/loki-values.yaml
+    # This source only exists so the Helm values file above can be loaded via $values.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
       targetRevision: feature/use-rollout-and-blue-green
       ref: values

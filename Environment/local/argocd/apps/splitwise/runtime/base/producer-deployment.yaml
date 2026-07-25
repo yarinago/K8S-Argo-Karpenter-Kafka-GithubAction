@@ -1,4 +1,7 @@
-﻿apiVersion: apps/v1
+﻿# UNUSED — not referenced by kustomization.yaml. Left over from before the
+# migration to Argo Rollouts (see producer-rollout.yaml, which replaced
+# this). Kept only as a pre-migration reference; safe to delete.
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: splitwise-producer
