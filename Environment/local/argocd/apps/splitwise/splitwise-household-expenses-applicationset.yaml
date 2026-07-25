@@ -6,6 +6,12 @@ metadata:
   name: splitwise-household-expenses
   namespace: argocd
 spec:
+  # Go-template rendering (Sprig + typed field coercion), instead of the
+  # legacy fasttemplate engine. Needed so a templated string like
+  # "{{.revisionHistoryLimit}}" below is correctly coerced to an integer in
+  # the generated Application, not rejected or left as a literal string.
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
   generators:
     - list:
         # Each element becomes one generated Argo CD Application.
@@ -18,6 +24,10 @@ spec:
             # Dev follows the Kafka feature branch for testing.
             revision: feature/add-logs-to-splitwise-and-kafka
             url: http://splitwise-dev.localtest.me:8080
+            # Argo CD Application-level sync/rollback history (status.history
+            # entries), not the Rollout's own revisionHistoryLimit — dev is
+            # disposable and fast-moving, so a shallow history is enough.
+            revisionHistoryLimit: 3
           - name: splitwise-household-expenses
             env: prod
             namespace: splitwise
@@ -25,35 +35,41 @@ spec:
             # Prod follows the main branch.
             revision: main
             url: http://splitwise.localtest.me:8080
+            # Deeper Application-level sync/rollback history than dev.
+            revisionHistoryLimit: 10
   template:
     metadata:
       # Use the explicit per-environment application names from the generator.
-      name: "{{name}}"
+      name: "{{.name}}"
       namespace: argocd
       labels:
         app.kubernetes.io/name: splitwise-household-expenses
         app.kubernetes.io/part-of: splitwise-household-expenses
         app.kubernetes.io/component: application
         # Helpful for filtering generated apps by environment in the Argo UI.
-        app.kubernetes.io/instance: "{{env}}"
+        app.kubernetes.io/instance: "{{.env}}"
       annotations:
         # Clickable application link shown in Argo CD.
-        link.argocd.argoproj.io/app: "{{url}}"
+        link.argocd.argoproj.io/app: "{{.url}}"
     spec:
       project: splitwise-household-expenses
+      # Number of old sync/rollback entries Argo CD keeps in status.history
+      # for this Application — unrelated to the Rollout's own
+      # revisionHistoryLimit (old ReplicaSets), set per-environment above.
+      revisionHistoryLimit: "{{.revisionHistoryLimit}}"
       sources:
         # Source 1: Splitwise app repo — web Deployment, Service, ConfigMap, Ingress.
         - repoURL: https://github.com/yarinago/splitwise-household-expenses.git
-          targetRevision: "{{revision}}"
-          path: "{{path}}"
+          targetRevision: "{{.revision}}"
+          path: "{{.path}}"
         # Source 2: GitOps repo runtime overlay — Kafka cluster, topic, producer Deployment,
         # and the merged web+consumer Deployment (overwrites Source 1's web-only Deployment).
         - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
           targetRevision: feature/use-rollout-and-blue-green
-          path: "Environment/local/argocd/apps/splitwise/runtime/{{env}}"
+          path: "Environment/local/argocd/apps/splitwise/runtime/{{.env}}"
       destination:
         server: https://kubernetes.default.svc
-        namespace: "{{namespace}}"
+        namespace: "{{.namespace}}"
       syncPolicy:
         automated:
           prune: true
