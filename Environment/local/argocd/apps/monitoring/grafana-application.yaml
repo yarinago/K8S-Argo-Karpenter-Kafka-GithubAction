@@ -1,5 +1,9 @@
 # Argo CD Application that installs Grafana. Self-contained: does not depend
-# on the Prometheus Operator CRDs, so it can sync independently.
+# on the Prometheus Operator CRDs, so it can sync independently. Uses the
+# standalone grafana/grafana chart, not kube-prometheus-stack — Grafana has
+# no CRD dependency, so a separate release of the (much larger) umbrella
+# chart bought nothing except extra render cost on argocd-repo-server. See
+# the Local-Grafana wiki page.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -10,9 +14,9 @@ metadata:
 spec:
   project: monitoring
   sources:
-    - repoURL: https://prometheus-community.github.io/helm-charts
-      chart: kube-prometheus-stack
-      targetRevision: 80.13.3
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: grafana
+      targetRevision: 10.5.15
       helm:
         releaseName: grafana
         valueFiles:
