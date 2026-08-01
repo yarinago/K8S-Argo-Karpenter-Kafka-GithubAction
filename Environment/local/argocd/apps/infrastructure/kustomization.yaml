@@ -4,6 +4,6 @@ kind: Kustomization
 resources:
   - argo-cd/argocd-bootstrap-project.yaml
   - argo-cd/argocd-local-access-application.yaml
-  - network/traefik-ingress-application.yaml
-  - kafka/strimzi-operator-application.yaml
   - argo-rollouts/argo-rollouts-application.yaml
+  - kafka/strimzi-operator-application.yaml
+  - network/traefik-ingress-application.yaml
