@@ -543,7 +543,7 @@ data:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "100 * sum(rate(splitwise_http_requests_total{namespace=\"$namespace\", job=\"splitwise-export\", status=~\"5..\"}[5m])) / sum(rate(splitwise_http_requests_total{namespace=\"$namespace\", job=\"splitwise-export\"}[5m]))",
+              "expr": "100 * sum(rate(splitwise_http_requests_total{namespace=\"$namespace\", job=\"splitwise-export\", status=~\"5..\"}[5m]) or vector(0)) / sum(rate(splitwise_http_requests_total{namespace=\"$namespace\", job=\"splitwise-export\"}[5m]))",
               "legendFormat": "5xx error rate",
               "range": true,
               "refId": "A"
