@@ -1,30 +1,32 @@
-﻿# Argo CD Application that installs the Strimzi Cluster Operator.
+# Argo CD Application that installs the Argo Rollouts controller + dashboard.
+# Splitwise's producer/loadgen use this for blue-green deployments — this
+# Application only installs the controller, not those Rollouts themselves.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: kafka-strimzi
+  name: argo-rollouts
   namespace: argocd
   annotations:
-    # Early wave: Kafka/KafkaTopic/etc. custom resources (created by
-    # Splitwise's runtime overlay) need this operator's CRDs to exist first.
+    # Early wave: Rollout custom resources (created elsewhere) need this
+    # controller's CRDs to exist first.
     argocd.argoproj.io/sync-wave: "-1"
 spec:
   project: argocd-bootstrap
   sources:
-    - repoURL: https://strimzi.io/charts/
-      chart: strimzi-kafka-operator
-      targetRevision: 0.51.0
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-rollouts
+      targetRevision: 2.37.7
       helm:
-        releaseName: strimzi
+        releaseName: argo-rollouts
         valueFiles:
-          - $values/Environment/local/argocd/values/strimzi-values.yaml
+          - $values/Environment/local/argocd/values/argo-rollouts-values.yaml
     # This source only exists so the Helm values file above can be loaded via $values.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
       targetRevision: feature/use-rollout-and-blue-green
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: infrastructure
+    namespace: argo-rollouts
   syncPolicy:
     automated:
       prune: true

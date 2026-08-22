@@ -1,0 +1,11 @@
+# Groups the monitoring project and its per-service Applications.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - monitoring-project.yaml
+  - prometheus-operator-application.yaml
+  - prometheus-application.yaml
+  - alertmanager-application.yaml
+  - grafana-application.yaml
+  - loki-application.yaml

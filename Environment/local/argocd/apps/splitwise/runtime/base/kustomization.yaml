@@ -1,9 +1,15 @@
-﻿apiVersion: kustomize.config.k8s.io/v1beta1
+﻿# Kafka runtime layer shared by both environments — cluster, topic,
+# producer/loadgen Rollouts, monitoring hooks, and the Kafka UI debugging
+# tool. ../dev and ../prod both reference this directory as their base and
+# layer namespace/image-tag/ingress differences on top.
+apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - producer-deployment.yaml
-  - loadgen-deployment.yaml
+  - producer-rollout.yaml
+  - producer-rollout-services.yaml
+  - loadgen-rollout.yaml
+  - loadgen-rollout-services.yaml
   - kafka-cluster.yaml
   - kafka-nodepool.yaml
   - topic.yaml

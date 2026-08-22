@@ -1,13 +1,26 @@
-﻿apiVersion: kafka.strimzi.io/v1
+# The one Kafka topic Splitwise's producer/consumer/loadgen use. Explicit,
+# not auto-created (see kafka-cluster.yaml's auto.create.topics.enable).
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: splitwise-expenses-v1
   labels:
+    # Required so Strimzi's Topic Operator knows which Kafka cluster this
+    # topic belongs to (CR name here must match the Kafka resource's name).
     strimzi.io/cluster: splitwise-kafka
 spec:
+  # The CR name (splitwise-expenses-v1) and the actual Kafka topic name
+  # (splitwise.expenses.v1) differ deliberately — the CR name follows
+  # Kubernetes resource-naming rules (no dots), the topic name follows this
+  # project's Kafka naming convention.
   topicName: splitwise.expenses.v1
   partitions: 3
+  # Mirrors the cluster's default.replication.factor/min.insync.replicas in
+  # kafka-cluster.yaml — redundant with the cluster defaults, but explicit
+  # here so this topic's durability guarantee is visible without having to
+  # cross-reference the cluster config.
   replicas: 3
   config:
     min.insync.replicas: 2
+    # 7 days.
     retention.ms: 604800000

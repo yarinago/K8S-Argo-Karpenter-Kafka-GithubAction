@@ -1,9 +1,14 @@
+# Alert rules for Splitwise's Kafka pipeline, plus a few general
+# Kubernetes/Argo CD alerts. Each rule's own summary/description annotation
+# is the documentation for what it does — not repeated here. release:
+# prometheus must match the Prometheus release name, or these rules aren't
+# picked up (see the Local-Prometheus wiki page for why that label matters).
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: splitwise-kafka-alerts
   labels:
-    release: monitoring
+    release: prometheus
 spec:
   groups:
     - name: kafka.rules

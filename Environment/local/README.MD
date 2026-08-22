@@ -17,7 +17,9 @@ This folder bootstraps a local k3d cluster, installs Argo CD, and creates a root
 10. Child app that installs Traefik from the official Helm chart
 11. Child app that publishes the local ingress route for Argo CD
 12. Child app that installs the Strimzi Cluster Operator
-13. Child app that installs Prometheus + Grafana for local monitoring
+13. Dedicated `monitoring` Argo CD project with one Application per observability
+    service — `prometheus-operator` (CRDs + operator), `prometheus`,
+    `alertmanager`, `grafana`, and `loki` — each its own Helm release
 14. Splitwise Argo resources grouped under `Environment/local/argocd/apps/splitwise`
     using an `AppProject` plus an `ApplicationSet` that generates the dev and prod apps
 15. Splitwise dev/prod apps that combine the application repo overlays with a local Kafka runtime layer
@@ -32,8 +34,9 @@ Environment/local/
   argocd/
     access/argocd/              # Argo CD ingress + NodePort fallback service
     apps/
-      platform/                 # Local platform project + platform apps
-      splitwise/                # Splitwise AppProject + ApplicationSet + Kafka runtime overlays
+      infrastructure/            # Local platform project + ingress/kafka/argo-rollouts apps
+      monitoring/                # Monitoring AppProject + prometheus-operator/prometheus/alertmanager/grafana/loki apps
+      splitwise/                 # Splitwise AppProject + ApplicationSet + Kafka runtime overlays
     charts/infra/               # Commented-out Helm example for the placeholder infra app
     reference/infra-raw/        # Commented-out raw-manifest equivalent of the infra chart
     values/                     # Helm values for local apps/charts

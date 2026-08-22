@@ -1,0 +1,27 @@
+# Dedicated Argo CD project for the local observability stack: Prometheus
+# Operator, Prometheus, Alertmanager, Grafana, and Loki. Split out of
+# argocd-bootstrap so monitoring has its own scoped project.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    # Create the project before Applications that reference it.
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  description: Argo CD project for the local observability stack
+  sourceRepos:
+    - https://prometheus-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
+    - https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: infrastructure
+  clusterResourceWhitelist:
+    # Broadly allowed for simplicity in local bootstrap (CRDs, ClusterRoles, etc.).
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

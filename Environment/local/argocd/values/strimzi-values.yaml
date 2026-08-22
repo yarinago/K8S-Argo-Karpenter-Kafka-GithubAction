@@ -1,8 +1,15 @@
-﻿# Local Strimzi operator configuration.
+# Local Strimzi operator configuration.
+
+# The operator only reconciles Kafka/KafkaTopic/etc. CRs in these
+# namespaces — not cluster-wide. Add a namespace here before deploying
+# Kafka resources into it, or the operator silently ignores them.
 watchNamespaces:
   - splitwise-dev
   - splitwise
 
+# The operator's own startup is slower than the chart's tighter default
+# probe timing tolerates, causing spurious probe failures — loosened
+# deliberately, not an arbitrary value.
 livenessProbe:
   initialDelaySeconds: 60
   timeoutSeconds: 10
