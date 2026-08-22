@@ -6,10 +6,7 @@ metadata:
   name: splitwise-household-expenses
   namespace: argocd
 spec:
-  # Go-template rendering (Sprig + typed field coercion), instead of the
-  # legacy fasttemplate engine. Needed so a templated string like
-  # "{{.revisionHistoryLimit}}" below is correctly coerced to an integer in
-  # the generated Application, not rejected or left as a literal string.
+  # Go-template rendering (Sprig), instead of the legacy fasttemplate engine.
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
   generators:
@@ -53,10 +50,6 @@ spec:
         link.argocd.argoproj.io/app: "{{.url}}"
     spec:
       project: splitwise-household-expenses
-      # Number of old sync/rollback entries Argo CD keeps in status.history
-      # for this Application — unrelated to the Rollout's own
-      # revisionHistoryLimit (old ReplicaSets), set per-environment above.
-      revisionHistoryLimit: "{{.revisionHistoryLimit}}"
       sources:
         # Source 1: Splitwise app repo — web Deployment, Service, ConfigMap, Ingress.
         - repoURL: https://github.com/yarinago/splitwise-household-expenses.git
@@ -77,3 +70,15 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+  # revisionHistoryLimit (Application-level sync/rollback history, NOT the
+  # Rollout's own revisionHistoryLimit for old ReplicaSets) can't live in
+  # `template.spec` above: the ApplicationSet CRD types that field as a real
+  # integer, so a quoted template string fails schema validation on apply
+  # ("must be of type integer"), while an unquoted "{{.x}}" isn't valid YAML
+  # either (leading `{{` parses as a flow-mapping open). templatePatch is a
+  # plain string field, so the placeholder only becomes a real int when the
+  # controller renders and merges this patch onto the already-built
+  # Application object, after both YAML parsing and schema validation.
+  templatePatch: |
+    spec:
+      revisionHistoryLimit: {{.revisionHistoryLimit}}
