@@ -14,7 +14,7 @@ spec:
   project: argocd-bootstrap
   source:
     repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-    targetRevision: feature/use-rollout-and-blue-green
+    targetRevision: main
     # Folder containing the actual Ingress manifest.
     path: Environment/local/argocd/access/argocd
   destination:
