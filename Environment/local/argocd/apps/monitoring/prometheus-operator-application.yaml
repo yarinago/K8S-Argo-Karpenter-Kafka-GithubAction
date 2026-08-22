@@ -1,0 +1,45 @@
+# Argo CD Application that installs the kube-prometheus-stack CRDs and the
+# Prometheus Operator only. Must sync before the prometheus and alertmanager
+# Applications, which create Prometheus/Alertmanager custom resources that
+# depend on these CRDs and on the operator being present.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: monitoring
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 80.13.3
+      helm:
+        releaseName: prometheus-operator
+        valueFiles:
+          - $values/Environment/local/argocd/values/prometheus-operator-values.yaml
+    # This source only exists so the Helm values file above can be loaded via $values.
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: feature/use-rollout-and-blue-green
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infrastructure
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  # The admission webhook Job regenerates its Secret's cert material on every
+  # run; ignore its data so Argo CD doesn't report permanent drift.
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: prometheus-operator-kube-p-admission
+      namespace: infrastructure
+      jsonPointers:
+        - /data

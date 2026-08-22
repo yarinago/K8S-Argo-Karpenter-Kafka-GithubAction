@@ -1,15 +1,32 @@
-﻿apiVersion: kafka.strimzi.io/v1
+# Broker pods for splitwise-kafka. 3 replicas is a deliberate HA choice, not
+# an arbitrary default — it's what lets min.insync.replicas: 2 in
+# kafka-cluster.yaml actually mean something (survive 1 broker failure).
+#
+# Do not shrink this in place on a running cluster: Kafka does not support
+# reducing a topic's replication factor in-place, and a previous attempt at
+# this (dev-only, meant to save local resources) left a partition with no
+# leader when a broker was removed mid-reassignment. See the
+# Local-Splitwise-Runtime-Kafka wiki page for the full incident. If a
+# smaller topology is wanted, build it as a fresh cluster/topic, not a
+# live migration of this one.
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
 metadata:
   name: pool-a
   labels:
+    # Strimzi uses this label, not a spec field, to associate the node pool
+    # with its parent Kafka resource.
     strimzi.io/cluster: splitwise-kafka
 spec:
   replicas: 3
   roles:
+    # KRaft mode: these pods are both brokers and controllers (no separate
+    # ZooKeeper/controller-only nodes).
     - controller
     - broker
   storage:
+    # No PVCs — data does not survive a full pod/cluster wipe. Acceptable
+    # for local dev/demo data, not for anything that needs to persist.
     type: ephemeral
   resources:
     requests:

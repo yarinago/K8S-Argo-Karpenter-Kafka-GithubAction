@@ -22,11 +22,11 @@ configs:
 repoServer:
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 500m
+      cpu: 200m
       memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1536Mi
 
   # Extra volumes shared between the init container and the repo-server container.
   volumes:
@@ -123,10 +123,10 @@ controller:
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
       memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1536Mi
 
 notifications:
   resources:

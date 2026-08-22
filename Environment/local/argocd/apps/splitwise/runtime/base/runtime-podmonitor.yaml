@@ -1,4 +1,6 @@
-﻿apiVersion: monitoring.coreos.com/v1
+# Scrapes the app repo's own consumer/web process (component: runtime,
+# defined in the splitwise-household-expenses repo, not this one).
+apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: splitwise-runtime
@@ -10,6 +12,9 @@ spec:
       app.kubernetes.io/name: splitwise-export
       app.kubernetes.io/component: runtime
   podMetricsEndpoints:
+    # Two separate ports on the same pod — the app exposes web-request
+    # metrics and Kafka-consumer metrics on different endpoints rather than
+    # merging them into one.
     - port: http
       path: /metrics
       interval: 30s

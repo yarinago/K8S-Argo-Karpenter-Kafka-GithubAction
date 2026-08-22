@@ -1,0 +1,67 @@
+# Standalone grafana/grafana chart — not kube-prometheus-stack. Grafana has
+# no dependency on the Prometheus Operator or its CRDs, so it doesn't need
+# to be another release of that chart; using the real upstream chart
+# directly means argocd-repo-server renders a much smaller chart for this
+# release instead of the full kube-prometheus-stack with everything else
+# toggled off. See the Local-Grafana wiki page for the full rationale.
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: "true"
+    argocd.argoproj.io/ignore-default-links: "true"
+    link.argocd.argoproj.io/external-link: http://grafana.localtest.me:8080
+  hosts:
+    - grafana.localtest.me
+  path: /
+  pathType: Prefix
+
+grafana.ini:
+  auth.anonymous:
+    enabled: true
+    org_role: Viewer
+  auth:
+    disable_login_form: true
+
+# The standalone chart has no "auto-generate a Prometheus/Alertmanager
+# datasource" convenience layer the way kube-prometheus-stack's grafana
+# wrapper does (that layer assumed Prometheus/Alertmanager lived in the same
+# release, which broke when they were split into their own releases — see
+# Local-Monitoring-Project). Every datasource is defined explicitly here
+# instead, pointed at each component's real service hostname.
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        url: http://prometheus-kube-prometheus-prometheus.infrastructure:9090/
+        access: proxy
+        isDefault: true
+        jsonData:
+          httpMethod: POST
+          timeInterval: 30s
+      - name: Alertmanager
+        type: alertmanager
+        uid: alertmanager
+        url: http://alertmanager-kube-promethe-alertmanager.infrastructure:9093/
+        access: proxy
+        jsonData:
+          handleGrafanaManagedAlerts: false
+          implementation: prometheus
+      - name: Loki
+        type: loki
+        uid: loki-splitwise
+        url: http://loki:3100
+        access: proxy
+        isDefault: false
+        jsonData:
+          maxLines: 1000
+
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    searchNamespace: ALL

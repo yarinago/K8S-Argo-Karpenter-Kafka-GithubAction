@@ -1,0 +1,78 @@
+# CRDs and the operator come from the prometheus-operator Application; do not
+# reinstall them here to avoid two releases fighting over the same resources.
+crds:
+  enabled: false
+prometheusOperator:
+  enabled: false
+alertmanager:
+  enabled: false
+grafana:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: true
+nodeExporter:
+  enabled: true
+
+# k3d does not expose these control-plane components as scrape targets, and
+# the chart would otherwise create Service/ServiceMonitor proxies for them in
+# kube-system, which the monitoring AppProject doesn't permit.
+kubeControllerManager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+coreDns:
+  enabled: false
+
+prometheus:
+  enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      argocd.argoproj.io/ignore-default-links: "true"
+      link.argocd.argoproj.io/external-link: http://prometheus.localtest.me:8080
+    hosts:
+      - prometheus.localtest.me
+    paths:
+      - /
+    pathType: Prefix
+  prometheusSpec:
+    retention: 2d
+    # An empty {} selector is falsy in the chart's Go templates, so it falls
+    # through to the *SelectorNilUsesHelmValues branch (default true), which
+    # silently restricts discovery to resources labeled release: prometheus
+    # instead of matching everything. Set these false so the {} selectors
+    # below actually take effect and pick up PodMonitors/ServiceMonitors from
+    # other repos (e.g. Splitwise's) that don't carry that label.
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    ruleSelector: {}
+    ruleNamespaceSelector: {}
+    # The chart only auto-wires this Prometheus to an Alertmanager when
+    # alertmanager.enabled is true (i.e. same release). Since Alertmanager is
+    # a separate release here, point at it explicitly or Prometheus silently
+    # fires alerts to nowhere and Alertmanager always shows "no alerts found".
+    alertingEndpoints:
+      - namespace: infrastructure
+        name: alertmanager-kube-promethe-alertmanager
+        port: http-web
+        apiVersion: v2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1536Mi

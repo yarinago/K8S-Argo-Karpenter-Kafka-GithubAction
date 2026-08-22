@@ -1,3 +1,7 @@
+# Debugging/browsing UI for Kafka (topics, consumer groups, messages). Plain
+# Deployment, not a Rollout — this is a dev tool, not something that needs
+# blue-green promotion. Exposed via environment-specific ingress
+# (../dev/kafka-ui-ingress.yaml, ../prod/kafka-ui-ingress.yaml).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,6 +24,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: kafka-ui
+          # https://github.com/kafbat/kafka-ui — community fork of the
+          # original provectus/kafka-ui, which stopped receiving updates.
           image: ghcr.io/kafbat/kafka-ui:v1.5.0
           imagePullPolicy: IfNotPresent
           ports:

@@ -1,4 +1,8 @@
-﻿apiVersion: kustomize.config.k8s.io/v1beta1
+﻿# Dev overlay: everything from ../base, namespaced into splitwise-dev,
+# tracking the `latest` image tag. Kafka topology is deliberately identical
+# to prod here — see the Local-Splitwise-Environments wiki page for why an
+# earlier attempt to shrink this to a single broker was reverted.
+apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 namespace: splitwise-dev

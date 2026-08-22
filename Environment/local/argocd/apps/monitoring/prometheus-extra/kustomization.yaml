@@ -1,0 +1,9 @@
+# Raw manifests the prometheus Application deploys alongside the Helm chart.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: infrastructure
+
+resources:
+  - argocd-servicemonitor.yaml
+  - kafka-alert-rules.yaml

@@ -5,7 +5,7 @@ kind: ServiceMonitor
 metadata:
   name: argocd-application-controller
   labels:
-    release: monitoring
+    release: prometheus
 spec:
   namespaceSelector:
     matchNames:
@@ -25,7 +25,7 @@ kind: ServiceMonitor
 metadata:
   name: argocd-server
   labels:
-    release: monitoring
+    release: prometheus
 spec:
   namespaceSelector:
     matchNames:

@@ -1,0 +1,33 @@
+# Only the CRDs and the operator. Prometheus, Alertmanager, Grafana,
+# kube-state-metrics, and node-exporter are installed by sibling Applications
+# as separate Helm releases of this same chart.
+crds:
+  enabled: true
+
+prometheusOperator:
+  enabled: true
+
+prometheus:
+  enabled: false
+alertmanager:
+  enabled: false
+grafana:
+  enabled: false
+kubeStateMetrics:
+  enabled: false
+nodeExporter:
+  enabled: false
+
+# k3d does not expose these control-plane components as scrape targets, and
+# the chart would otherwise create Service/ServiceMonitor proxies for them in
+# kube-system, which the monitoring AppProject doesn't permit.
+kubeControllerManager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+coreDns:
+  enabled: false

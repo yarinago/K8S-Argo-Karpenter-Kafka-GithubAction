@@ -1,0 +1,10 @@
+# Raw manifests the grafana Application deploys alongside the Helm chart.
+# grafana-datasource-loki.yaml also lives in this directory but is
+# deliberately NOT listed below — see that file's own header comment.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: infrastructure
+
+resources:
+  - grafana-splitwise-kafka-dashboard.yaml

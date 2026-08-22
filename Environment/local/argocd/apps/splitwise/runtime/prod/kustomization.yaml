@@ -11,3 +11,20 @@ images:
   - name: ghcr.io/yarinago/splitwise-household-expenses
     newName: ghcr.io/yarinago/splitwise-household-expenses
     newTag: prod
+
+patches:
+  # Prod keeps more rollback depth than the base/dev default (3).
+  - target:
+      kind: Rollout
+      name: splitwise-producer
+    patch: |-
+      - op: replace
+        path: /spec/revisionHistoryLimit
+        value: 10
+  - target:
+      kind: Rollout
+      name: splitwise-loadgen
+    patch: |-
+      - op: replace
+        path: /spec/revisionHistoryLimit
+        value: 10

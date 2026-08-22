@@ -1,23 +1,22 @@
-﻿# Argo CD Application that installs the Strimzi Cluster Operator.
+# Argo CD Application that installs Alertmanager. CRDs and the operator come
+# from the prometheus-operator Application (sync-wave -1), which must land first.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: kafka-strimzi
+  name: alertmanager
   namespace: argocd
   annotations:
-    # Early wave: Kafka/KafkaTopic/etc. custom resources (created by
-    # Splitwise's runtime overlay) need this operator's CRDs to exist first.
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-wave: "0"
 spec:
-  project: argocd-bootstrap
+  project: monitoring
   sources:
-    - repoURL: https://strimzi.io/charts/
-      chart: strimzi-kafka-operator
-      targetRevision: 0.51.0
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 80.13.3
       helm:
-        releaseName: strimzi
+        releaseName: alertmanager
         valueFiles:
-          - $values/Environment/local/argocd/values/strimzi-values.yaml
+          - $values/Environment/local/argocd/values/alertmanager-values.yaml
     # This source only exists so the Helm values file above can be loaded via $values.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
       targetRevision: feature/use-rollout-and-blue-green
@@ -31,3 +30,4 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true

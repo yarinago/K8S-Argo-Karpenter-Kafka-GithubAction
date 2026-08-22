@@ -1,0 +1,60 @@
+# Argo CD Application that installs Grafana. Self-contained: does not depend
+# on the Prometheus Operator CRDs, so it can sync independently. Uses the
+# standalone grafana/grafana chart, not kube-prometheus-stack — Grafana has
+# no CRD dependency, so a separate release of the (much larger) umbrella
+# chart bought nothing except extra render cost on argocd-repo-server. See
+# the Local-Grafana wiki page.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: monitoring
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: grafana
+      targetRevision: 10.5.15
+      helm:
+        releaseName: grafana
+        valueFiles:
+          - $values/Environment/local/argocd/values/grafana-values.yaml
+    # This source only exists so the Helm values file above can be loaded via $values.
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: feature/use-rollout-and-blue-green
+      ref: values
+    # Grafana dashboard/datasource ConfigMaps discovered via the sidecar.
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: feature/use-rollout-and-blue-green
+      path: Environment/local/argocd/apps/monitoring/grafana-extra
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infrastructure
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  # Grafana generates an admin-password Secret at install time (never in Git),
+  # so Argo CD always sees a diff. Ignore its data to stop the permanent
+  # OutOfSync noise. The Deployment carries a checksum/secret annotation that
+  # mirrors the secret hash — it drifts whenever the secret data differs, so
+  # ignore it too.
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: grafana
+      namespace: infrastructure
+      jsonPointers:
+        - /data
+    - group: apps
+      kind: Deployment
+      name: grafana
+      namespace: infrastructure
+      jsonPointers:
+        - /spec/template/metadata/annotations/checksum~1secret

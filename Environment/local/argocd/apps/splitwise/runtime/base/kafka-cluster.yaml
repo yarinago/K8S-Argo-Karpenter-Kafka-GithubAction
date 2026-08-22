@@ -1,19 +1,35 @@
-﻿apiVersion: kafka.strimzi.io/v1
+# Cluster-level Kafka config for Splitwise. Broker sizing/count lives in the
+# companion KafkaNodePool (kafka-nodepool.yaml) — this resource is the KRaft
+# cluster definition + listeners + replication defaults + exporter.
+apiVersion: kafka.strimzi.io/v1
 kind: Kafka
 metadata:
   name: splitwise-kafka
   annotations:
+    # KRaft mode: no separate ZooKeeper. Broker/controller roles come from
+    # the KafkaNodePool instead of being defined here.
     strimzi.io/node-pools: enabled
     strimzi.io/kraft: enabled
 spec:
   kafka:
     listeners:
+      # Internal-only, no TLS — fine for a local cluster where nothing
+      # outside the cluster network talks to Kafka directly.
       - name: plain
         port: 9092
         type: internal
         tls: false
     config:
+      # Topics must be created explicitly (topic.yaml) rather than
+      # auto-created on first produce/consume, so replication/retention are
+      # always deliberate, not chart/client defaults.
       auto.create.topics.enable: false
+      # These four replication settings are coupled to the 3-broker count in
+      # kafka-nodepool.yaml. min.insync.replicas: 2 means a write survives 1
+      # broker failure without data loss. Do not shrink these without also
+      # shrinking (or removing) the broker count — see the KafkaNodePool
+      # comment and the Local-Splitwise-Runtime-Kafka wiki page for why an
+      # in-place shrink previously broke a running topic.
       default.replication.factor: 3
       min.insync.replicas: 2
       offsets.topic.replication.factor: 3
@@ -26,9 +42,16 @@ spec:
             app.kubernetes.io/name: splitwise-kafka
             app.kubernetes.io/part-of: splitwise-household-expenses
   entityOperator:
+    # Empty blocks just mean "enable this operator with its own defaults" —
+    # topicOperator reconciles KafkaTopic CRs, userOperator reconciles
+    # KafkaUser CRs (unused here, but harmless to leave enabled).
     topicOperator: {}
     userOperator: {}
   kafkaExporter:
+    # Scrape every topic/consumer group, not just Splitwise's own — this is
+    # a shared local cluster, and the export cost is negligible at this
+    # scale. Feeds the kafka_* metrics Prometheus scrapes (see
+    # kafka-exporter-podmonitor.yaml).
     topicRegex: ".*"
     groupRegex: ".*"
     showAllOffsets: true
