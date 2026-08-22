@@ -20,11 +20,11 @@ spec:
           - $values/Environment/local/argocd/values/prometheus-values.yaml
     # This source only exists so the Helm values file above can be loaded via $values.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-      targetRevision: feature/use-rollout-and-blue-green
+      targetRevision: main
       ref: values
     # PrometheusRule/ServiceMonitor resources owned by Prometheus.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
-      targetRevision: feature/use-rollout-and-blue-green
+      targetRevision: main
       path: Environment/local/argocd/apps/monitoring/prometheus-extra
   destination:
     server: https://kubernetes.default.svc
