@@ -1,0 +1,146 @@
+name: Terraform (AWS environments)
+
+# On-demand plan/apply/destroy for envs/{dev,prod}/{01-cluster,02-platform},
+# selectable independently or together. terraform-aws-validate.yaml only
+# ever plans (on a PR into develop/main) — this is the only workflow that
+# actually applies or destroys an environment, and the only place
+# `destroy` exists as a workflow at all (previously CLI-only via
+# scripts/destroy_environment.sh, which this workflow calls directly for
+# the destroy path rather than re-implementing its Karpenter-drain logic).
+#
+# dev is deployable from any branch — global/github-oidc's trust policy
+# allows any ref of this repo to assume the role, on purpose, so you can
+# dispatch this against dev straight from a feature branch without
+# merging first. prod is different: it can only ever be deployed from
+# main. IAM has no visibility into which env a given run picked (that's a
+# workflow input, not part of the OIDC token), so that restriction can't
+# live in the trust policy — it's enforced below instead, in the "Restrict
+# prod to main" guard step, before anything touches AWS.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action to run against every selected environment"
+        type: choice
+        options: [plan, apply, destroy]
+        default: plan
+        required: true
+      target_dev:
+        description: "Include envs/dev"
+        type: boolean
+        default: false
+      target_prod:
+        description: "Include envs/prod"
+        type: boolean
+        default: false
+      confirm_destroy_phrase:
+        description: 'DESTROY ONLY: type exactly "destroy selected environments" to proceed. Anything else (including leaving this blank) aborts before touching AWS.'
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-aws-envs
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.9.0"
+
+jobs:
+  prepare:
+    name: Resolve selected environments
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.selected.outputs.envs }}
+    steps:
+      - name: Require at least one target environment
+        if: inputs.target_dev != true && inputs.target_prod != true
+        run: |
+          echo "::error::Select at least one of target_dev / target_prod."
+          exit 1
+
+      - name: Abort if destroy requested without the exact confirmation phrase
+        if: inputs.action == 'destroy' && inputs.confirm_destroy_phrase != 'destroy selected environments'
+        run: |
+          echo "::error::action=destroy requires confirm_destroy_phrase to be exactly 'destroy selected environments'. Aborting before touching AWS."
+          exit 1
+
+      - name: Restrict prod to main
+        if: inputs.target_prod == true && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::target_prod is only allowed when this workflow is run from main (got '${{ github.ref }}'). Uncheck target_prod, or re-run this from main."
+          exit 1
+
+      - name: Build the environment matrix
+        id: selected
+        run: |
+          list=()
+          [[ "${{ inputs.target_dev }}" == "true" ]] && list+=('"dev"')
+          [[ "${{ inputs.target_prod }}" == "true" ]] && list+=('"prod"')
+          IFS=,
+          echo "envs=[${list[*]}]" >> "$GITHUB_OUTPUT"
+
+  terraform:
+    name: ${{ matrix.env }} (${{ inputs.action }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ fromJson(needs.prepare.outputs.envs) }}
+    runs-on: ubuntu-latest
+    environment: aws-${{ matrix.env }}   # required reviewers belong here — this is the only workflow that applies or destroys an environment
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Plan 01-cluster
+        if: inputs.action == 'plan'
+        working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/01-cluster
+        run: |
+          terraform init -input=false
+          terraform plan -input=false
+
+      - name: Plan 02-platform
+        if: inputs.action == 'plan'
+        working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/02-platform
+        run: |
+          terraform init -input=false
+          terraform plan -input=false
+
+      - name: Apply 01-cluster
+        if: inputs.action == 'apply'
+        working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/01-cluster
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+
+      - name: Apply 02-platform
+        if: inputs.action == 'apply'
+        working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/02-platform
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+
+      - name: Set up kubectl (needed by destroy_environment.sh to drain Karpenter nodes)
+        if: inputs.action == 'destroy'
+        uses: azure/setup-kubectl@v4
+
+      - name: Destroy environment
+        if: inputs.action == 'destroy'
+        working-directory: Environment/aws
+        run: ./scripts/destroy_environment.sh ${{ matrix.env }}
