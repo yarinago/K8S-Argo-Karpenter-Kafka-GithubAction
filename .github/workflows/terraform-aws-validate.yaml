@@ -5,6 +5,14 @@ name: Terraform (AWS validate)
 # review. Nothing here ever applies; this is a review-gate, not a
 # deploy path.
 #
+# Plan output goes three places: the raw step log (colored, since
+# terraform's own ANSI output isn't touched there), the job's Markdown
+# summary, and a sticky PR comment that updates in place on every push
+# instead of piling up a new one each time. The summary/comment copies use
+# -no-color + a ```diff fence, which is what gives them +/- coloring in
+# GitHub's renderer — ANSI escape codes don't survive inside a Markdown
+# code fence, so this is a real tradeoff, not a free upgrade.
+#
 # Explicitly scoped to PRs targeting develop or main. dev can be deployed
 # from any branch (terraform-aws-envs.yaml, target_dev), so this gate's
 # value there is review/confidence before merging, not the only path to
@@ -111,3 +119,71 @@ jobs:
         run: |
           terraform init -input=false
           terraform plan -input=false -no-color | tee /tmp/plan-prod.txt
+
+      - name: Write plan job summary
+        if: always()
+        run: |
+          {
+            echo "## dev / 01-cluster plan"
+            echo '```diff'
+            cat /tmp/plan-dev.txt 2>/dev/null || echo "(no output — plan step didn't complete)"
+            echo '```'
+            echo "## prod / 01-cluster plan"
+            echo '```diff'
+            cat /tmp/plan-prod.txt 2>/dev/null || echo "(no output — plan step didn't complete)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Posts one sticky comment per PR (found and updated by its hidden
+      # marker, not re-created on every push) rather than piling up a new
+      # comment on every commit.
+      - name: Post plan as a PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- terraform-aws-validate-plan -->';
+            const read = (path) => {
+              try { return fs.readFileSync(path, 'utf8'); }
+              catch { return "(no output — plan step didn't complete)"; }
+            };
+            const body = [
+              marker,
+              '### Terraform plan (envs/dev and envs/prod)',
+              '<details><summary>dev / 01-cluster</summary>',
+              '',
+              '```diff',
+              read('/tmp/plan-dev.txt'),
+              '```',
+              '</details>',
+              '<details><summary>prod / 01-cluster</summary>',
+              '',
+              '```diff',
+              read('/tmp/plan-prod.txt'),
+              '```',
+              '</details>',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

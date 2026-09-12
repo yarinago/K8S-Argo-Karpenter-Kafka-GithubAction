@@ -77,7 +77,12 @@ jobs:
         working-directory: Environment/aws/global/github-oidc
         run: |
           terraform init -input=false
-          terraform plan -input=false
+          {
+            echo "## github-oidc plan"
+            echo '```diff'
+            terraform plan -input=false -no-color
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: "github-oidc: apply"
         if: inputs.action == 'apply'
@@ -91,7 +96,12 @@ jobs:
         working-directory: Environment/aws/global/dns
         run: |
           terraform init -input=false
-          terraform plan -input=false
+          {
+            echo "## dns plan"
+            echo '```diff'
+            terraform plan -input=false -no-color
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: "dns: apply"
         if: inputs.action == 'apply'

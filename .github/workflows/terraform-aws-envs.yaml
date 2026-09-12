@@ -113,7 +113,12 @@ jobs:
         working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/01-cluster
         run: |
           terraform init -input=false
-          terraform plan -input=false
+          {
+            echo "## ${{ matrix.env }} / 01-cluster plan"
+            echo '```diff'
+            terraform plan -input=false -no-color
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Detect whether 01-cluster has been applied yet
         id: cluster_state
@@ -131,7 +136,12 @@ jobs:
         working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/02-platform
         run: |
           terraform init -input=false
-          terraform plan -input=false
+          {
+            echo "## ${{ matrix.env }} / 02-platform plan"
+            echo '```diff'
+            terraform plan -input=false -no-color
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Plan 02-platform skipped (01-cluster not applied yet)
         if: inputs.action == 'plan' && steps.cluster_state.outputs.exists == 'false'
