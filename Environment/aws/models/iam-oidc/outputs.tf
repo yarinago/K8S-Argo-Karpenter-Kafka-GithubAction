@@ -13,3 +13,7 @@ output "external_secrets_role_arn" {
 output "alb_controller_role_arn" {
   value = module.alb_controller_irsa.role_arn
 }
+
+output "ebs_csi_driver_role_arn" {
+  value = aws_iam_role.ebs_csi.arn
+}

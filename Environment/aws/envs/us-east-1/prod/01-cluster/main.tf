@@ -72,3 +72,13 @@ module "iam_oidc" {
   secrets_path_prefix   = "splitwise/prod/"
   hosted_zone_arn       = "arn:aws:route53:::hostedzone/${data.terraform_remote_state.dns.outputs.hosted_zone_id}"
 }
+
+# Standalone, not inside models/eks's cluster_addons — see the comment on
+# that module's cluster_addons block for why (needs module.iam_oidc's
+# role, which needs this same cluster's OIDC provider, which doesn't
+# exist until the cluster itself is created).
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name             = module.eks.cluster_name
+  addon_name               = "aws-ebs-csi-driver"
+  service_account_role_arn = module.iam_oidc.ebs_csi_driver_role_arn
+}

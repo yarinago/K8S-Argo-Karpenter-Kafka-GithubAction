@@ -165,3 +165,46 @@ module "alb_controller_irsa" {
   service_account   = "aws-load-balancer-controller"
   policy_json       = file("${path.module}/files/alb-controller-policy.json")
 }
+
+# --- EBS CSI driver ---------------------------------------------------
+# Built directly here instead of via the irsa-role submodule: every other
+# role above attaches a custom inline policy (policy_json), but this one
+# uses AWS's own managed AmazonEBSCSIDriverPolicy — the officially blessed
+# setup for this specific addon, not something to hand-maintain a copy of.
+# Required, not optional: without this role, the EBS CSI controller pods
+# have no AWS API permissions, crash-loop, and the EKS addon never reaches
+# ACTIVE — hit and diagnosed live (20min timeout, "waiting for EKS Add-On
+# ... create: timeout while waiting for state to become 'ACTIVE'").
+data "aws_iam_policy_document" "ebs_csi_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [var.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${var.oidc_provider_url}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${var.oidc_provider_url}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ebs_csi" {
+  name               = "${var.cluster_name}-ebs-csi-driver"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_trust.json
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  role       = aws_iam_role.ebs_csi.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}

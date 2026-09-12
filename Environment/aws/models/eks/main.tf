@@ -23,6 +23,16 @@ module "eks" {
     "karpenter.sh/discovery" = var.cluster_name
   }
 
+  # aws-ebs-csi-driver is NOT here, on purpose — it needs an IRSA role
+  # (service_account_role_arn) or its controller pods have no AWS API
+  # permissions, crash-loop, and the addon sits in CREATING until it times
+  # out (~20min, hit live). That role needs this module's own OIDC
+  # provider output, which doesn't exist until the cluster itself is
+  # created — a module can't depend on its own output, so it can't be
+  # created inside this same module call. It's created as a standalone
+  # aws_eks_addon resource one level up instead, after models/iam-oidc
+  # (see envs/*/01-cluster/main.tf) — same apply, correct order, no
+  # circularity.
   cluster_addons = {
     vpc-cni = {
       most_recent = true
@@ -31,9 +41,6 @@ module "eks" {
       most_recent = true
     }
     coredns = {
-      most_recent = true
-    }
-    aws-ebs-csi-driver = {
       most_recent = true
     }
   }
