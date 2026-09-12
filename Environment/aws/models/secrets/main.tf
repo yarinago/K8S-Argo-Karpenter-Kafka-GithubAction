@@ -20,8 +20,17 @@ resource "aws_secretsmanager_secret" "this" {
   recovery_window_in_days  = 0
 }
 
+# for_each can't take var.secret_values directly: Terraform hard-blocks a
+# sensitive-marked value as a for_each set, since resource instance keys
+# aren't redacted in plan/state output the way values are — and the whole
+# variable's sensitivity taints everything derived from it, keys() included,
+# even though the keys themselves (just secret names like "app-config") are
+# not sensitive at all. nonsensitive() strips that taint from the key set
+# only; secret_string below still reads the real value straight out of the
+# still-sensitive var.secret_values, so the actual credential material
+# stays fully tracked as sensitive throughout.
 resource "aws_secretsmanager_secret_version" "this" {
-  for_each      = var.secret_values
+  for_each      = toset(nonsensitive(keys(var.secret_values)))
   secret_id     = aws_secretsmanager_secret.this[each.key].id
-  secret_string = each.value
+  secret_string = var.secret_values[each.key]
 }
