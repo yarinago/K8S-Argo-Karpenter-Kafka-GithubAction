@@ -42,6 +42,21 @@ data "aws_iam_policy_document" "github_actions_trust" {
         # workflow (terraform-aws-validate.yaml) never applies or destroys
         # anything regardless of what this trust policy allows.
         "repo:${var.github_org}/${var.infra_repo}:pull_request",
+        # A real gotcha, hit and fixed live: when a job specifies
+        # `environment:` (terraform-aws-envs.yaml and
+        # terraform-aws-account-setup.yaml both do, for the
+        # required-reviewers gate), GitHub replaces the OIDC token's sub
+        # claim entirely — repo:<org>/<repo>:ref:refs/heads/<branch>
+        # becomes repo:<org>/<repo>:environment:<name> instead, dropping
+        # the branch/ref info completely. Without this, every job that
+        # uses an environment gets "Not authorized to perform
+        # sts:AssumeRoleWithWebIdentity" regardless of a correct
+        # AWS_ROLE_ARN, because neither condition above ever matches its
+        # actual sub. Wildcarded rather than one entry per environment
+        # name, matching the same "any branch" permissiveness as the ref
+        # condition above — environment name was never the security
+        # boundary here anyway.
+        "repo:${var.github_org}/${var.infra_repo}:environment:*",
       ]
     }
   }
