@@ -115,12 +115,27 @@ jobs:
           terraform init -input=false
           terraform plan -input=false
 
-      - name: Plan 02-platform
+      - name: Detect whether 01-cluster has been applied yet
+        id: cluster_state
         if: inputs.action == 'plan'
+        run: |
+          if aws s3api head-object --bucket splitwise-tfstate-398915901412 \
+            --key "envs/${{ env.AWS_REGION }}/${{ matrix.env }}/01-cluster/terraform.tfstate" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Plan 02-platform
+        if: inputs.action == 'plan' && steps.cluster_state.outputs.exists == 'true'
         working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/02-platform
         run: |
           terraform init -input=false
           terraform plan -input=false
+
+      - name: Plan 02-platform skipped (01-cluster not applied yet)
+        if: inputs.action == 'plan' && steps.cluster_state.outputs.exists == 'false'
+        run: echo "::notice::Skipping 02-platform plan — 01-cluster has never been applied, so there's no live cluster/state for its Kubernetes/Helm providers to read. Run action=apply first (it applies 01-cluster then 02-platform in the right order), then plan will work normally."
 
       - name: Apply 01-cluster
         if: inputs.action == 'apply'
