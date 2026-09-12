@@ -16,6 +16,7 @@ resource "kubernetes_namespace" "external_secrets" {
 # toleration dance needed here since models/eks deliberately left the
 # bootstrap node group untainted (see its main.tf comment for why).
 resource "helm_release" "karpenter" {
+  depends_on = [helm_release.alb_controller]
   name       = "karpenter"
   namespace  = "kube-system"
   repository = "oci://public.ecr.aws/karpenter"
@@ -152,6 +153,18 @@ resource "kubectl_manifest" "nodepool_batch" {
 }
 
 # --- AWS Load Balancer Controller ------------------------------------------
+# A known, real gotcha with this controller: its mutating webhook
+# registers for Service objects CLUSTER-WIDE the moment the chart's
+# webhook config is created — not scoped to just its own resources — so
+# any OTHER release creating a Service (external-dns, external-secrets,
+# argocd, even karpenter's own metrics Service) can get intercepted by a
+# webhook whose backing pods aren't ready yet, failing with "no endpoints
+# available for service aws-load-balancer-webhook-service". Hit live.
+# helm_release already waits for its own release's resources to become
+# ready (default wait = true) — the fix is making every other Service-
+# creating release in this file explicitly depend_on this one, so
+# Terraform doesn't even start them until the controller's pods are
+# actually up, not just until `helm install` returns.
 resource "helm_release" "alb_controller" {
   depends_on = [kubernetes_namespace.infrastructure]
   name       = "aws-load-balancer-controller"
@@ -183,12 +196,23 @@ resource "helm_release" "alb_controller" {
 
 # --- external-dns ------------------------------------------------------
 resource "helm_release" "external_dns" {
-  depends_on = [kubernetes_namespace.infrastructure]
+  depends_on = [kubernetes_namespace.infrastructure, helm_release.alb_controller]
   name       = "external-dns"
   namespace  = kubernetes_namespace.infrastructure.metadata[0].name
   repository = "https://kubernetes-sigs.github.io/external-dns/"
   chart      = "external-dns"
   version    = var.external_dns_chart_version
+
+  # Required as of a recent chart version — its values.schema.json now
+  # rejects a null/unset policy outright ("Invalid type. Expected:
+  # string, given: null"), hit live. sync (not the more conservative
+  # upsert-only) since this project destroys/recreates environments
+  # often and stale Route53 records from deleted Ingresses should
+  # actually get cleaned up, not just left behind.
+  set {
+    name  = "policy"
+    value = "sync"
+  }
 
   set {
     name  = "provider"
@@ -213,7 +237,7 @@ resource "helm_release" "external_dns" {
 
 # --- external-secrets --------------------------------------------------
 resource "helm_release" "external_secrets" {
-  depends_on = [kubernetes_namespace.external_secrets]
+  depends_on = [kubernetes_namespace.external_secrets, helm_release.alb_controller]
   name       = "external-secrets"
   namespace  = kubernetes_namespace.external_secrets.metadata[0].name
   repository = "https://charts.external-secrets.io"
@@ -258,6 +282,7 @@ resource "kubectl_manifest" "cluster_secret_store" {
 # sync until that's built, the same way local's very first bootstrap did
 # before Environment/local/argocd/apps existed.
 resource "helm_release" "argocd" {
+  depends_on       = [helm_release.alb_controller]
   name             = "argocd"
   namespace        = "argocd"
   create_namespace = true
