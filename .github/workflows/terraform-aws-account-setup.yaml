@@ -1,0 +1,118 @@
+name: Terraform (AWS account setup — global/github-oidc, global/dns)
+
+# Drives global/github-oidc and global/dns — the account-level resources
+# that CAN be managed through CI, because by the time this workflow ever
+# runs, the OIDC role it authenticates with already exists.
+#
+# global/backend-bootstrap is NOT here, and never will be: it creates the
+# S3 bucket every root's state lives in, and github-oidc's first apply
+# creates the OIDC trust relationship every workflow in this repo
+# (including this one) depends on. Neither has anything to authenticate
+# against yet on a brand-new account, so both are a required, one-time,
+# by-hand step — see Environment/aws/README.md's "Account bootstrap"
+# section for the exact commands. Once that's done, github-oidc's role can
+# manage itself (updating its own trust policy/attachments) and dns
+# entirely through this workflow, same as every other Terraform-AWS
+# workflow in this repo.
+#
+# Manual dispatch only — this is still account-level (the OIDC trust
+# relationship every CI workflow depends on, plus the Route53 hosted
+# zone/ACM cert every environment's ingress uses), so it never runs on a
+# push/PR trigger.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action to run against global/github-oidc and global/dns"
+        type: choice
+        options: [plan, apply, destroy]
+        default: plan
+        required: true
+      confirm_destroy_phrase:
+        description: 'DESTROY ONLY: type exactly "destroy global account setup" to proceed. Anything else (including leaving this blank) aborts before touching AWS.'
+        type: string
+        default: ""
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+concurrency:
+  group: terraform-aws-account-setup
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.9.0"
+
+jobs:
+  account-setup:
+    name: global/ (${{ inputs.action }})
+    runs-on: ubuntu-latest
+    environment: aws-account-setup   # required reviewers belong here — this job can delete the GitHub OIDC trust relationship and the hosted zone/cert
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Abort if destroy requested without the exact confirmation phrase
+        if: inputs.action == 'destroy' && inputs.confirm_destroy_phrase != 'destroy global account setup'
+        run: |
+          echo "::error::action=destroy requires confirm_destroy_phrase to be exactly 'destroy global account setup'. Aborting before touching AWS."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: "github-oidc: plan"
+        if: inputs.action == 'plan'
+        working-directory: Environment/aws/global/github-oidc
+        run: |
+          terraform init -input=false
+          terraform plan -input=false
+
+      - name: "github-oidc: apply"
+        if: inputs.action == 'apply'
+        working-directory: Environment/aws/global/github-oidc
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+
+      - name: "dns: plan"
+        if: inputs.action == 'plan'
+        working-directory: Environment/aws/global/dns
+        run: |
+          terraform init -input=false
+          terraform plan -input=false
+
+      - name: "dns: apply"
+        if: inputs.action == 'apply'
+        working-directory: Environment/aws/global/dns
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+
+      # Destroy order: dns first, github-oidc last — once github-oidc's
+      # role is gone, this job (and every other workflow) loses the
+      # ability to authenticate at all, so nothing can run after it.
+      - name: "dns: destroy"
+        if: inputs.action == 'destroy'
+        working-directory: Environment/aws/global/dns
+        run: |
+          terraform init -input=false
+          terraform destroy -input=false -auto-approve
+
+      - name: "github-oidc: destroy"
+        if: inputs.action == 'destroy'
+        working-directory: Environment/aws/global/github-oidc
+        run: |
+          terraform init -input=false
+          terraform destroy -input=false -auto-approve
