@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.9.0"
+  required_version = ">= 1.10.0"
 
   # Unlike backend-bootstrap (creates this backend, so it can't use it
   # yet), dns has no technical reason to stay local — same as

@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.9.0"
+  required_version = ">= 1.10.0"
 
   # Still applied by hand, never through CI — that protection comes from
   # CI's own workflow scripts simply never being written to touch this
