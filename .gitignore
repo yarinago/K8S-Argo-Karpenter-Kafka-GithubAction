@@ -2,3 +2,17 @@
 *.docx
 ~$*.docx
 ~WRL*.tmp
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+**/terraform.tfvars
+!**/terraform.tfvars.example
+# .terraform.lock.hcl is intentionally NOT ignored — it pins provider
+# versions/hashes and should be committed for reproducible applies.
+
+# Claude Code — settings.json is project config (shared, commit it);
+# settings.local.json is per-machine overrides, never shared.
+.claude/settings.local.json

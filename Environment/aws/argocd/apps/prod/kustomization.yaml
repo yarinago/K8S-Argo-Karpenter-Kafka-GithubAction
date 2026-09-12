@@ -1,0 +1,15 @@
+# Root Kustomize bundle for the AWS prod app-of-apps. envs/us-east-1/prod/02-platform's
+# root Application points here. Mirrors Environment/local/argocd/apps'
+# structure — infrastructure controllers (ALB/external-dns/ESO/Karpenter)
+# are Terraform-managed instead (see envs/us-east-1/prod/02-platform), not Argo CD
+# Applications here, since they have to exist before Argo CD itself does.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - kafka
+  - splitwise
+
+# Not yet built here: the monitoring stack (Prometheus/Alertmanager/
+# Grafana/Loki) and the Splitwise app's own web/consumer container from
+# the app repo — see Environment/aws/argocd/apps/README.md for status.

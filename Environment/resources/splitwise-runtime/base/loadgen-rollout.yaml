@@ -1,0 +1,82 @@
+# Synthetic load generator, kept scaled to 0 by default (see replicas
+# below) — turned on deliberately to generate demo/test traffic, not
+# running continuously. Same blue-green shape as producer-rollout.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: splitwise-loadgen
+spec:
+  # 0 by default. previewReplicaCount is intentionally unset (unlike
+  # producer-rollout.yaml), so preview also defaults to 0 unless someone
+  # scales this Rollout up by hand.
+  replicas: 0
+  # Overridden higher in prod for rollback depth; dev keeps this default
+  # since it's disposable and fast-moving.
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: splitwise-export
+      app.kubernetes.io/component: loadgen
+  strategy:
+    blueGreen:
+      activeService: splitwise-loadgen-active
+      previewService: splitwise-loadgen-preview
+      autoPromotionEnabled: false
+      scaleDownDelaySeconds: 30
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: splitwise-export
+        app.kubernetes.io/part-of: splitwise-household-expenses
+        app.kubernetes.io/component: loadgen
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: loadgen
+          image: ghcr.io/yarinago/splitwise-household-expenses
+          imagePullPolicy: Always
+          ports:
+            - name: metrics
+              containerPort: 9090
+          env:
+            - name: APP_MODE
+              value: loadgen
+            - name: METRICS_PORT
+              value: "9090"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: splitwise-kafka-kafka-bootstrap:9092
+            - name: KAFKA_TOPIC
+              value: splitwise.expenses.v1
+            # Synthetic load shape — tune these if you need more/less
+            # pressure on the cluster for a demo.
+            - name: KAFKA_LOADGEN_MESSAGES_PER_SECOND
+              value: "1500"
+            - name: KAFKA_LOADGEN_PAYLOAD_BYTES
+              value: "2048"
+            - name: SPLITWISE_LOAD_DOTENV
+              value: "0"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

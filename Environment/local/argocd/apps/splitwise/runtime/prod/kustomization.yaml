@@ -4,7 +4,10 @@ kind: Kustomization
 namespace: splitwise
 
 resources:
-  - ../base
+  # Moved to Environment/resources/ so both local and Environment/aws can
+  # reference the same base — ingress stays here, local-only, unchanged
+  # (Traefik + localtest.me; AWS's own overlay has its own ALB ingress).
+  - ../../../../../../resources/splitwise-runtime/base
   - kafka-ui-ingress.yaml
 
 images:

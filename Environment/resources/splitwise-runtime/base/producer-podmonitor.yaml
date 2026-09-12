@@ -1,0 +1,19 @@
+# Scrapes the producer Rollout's own /metrics endpoint (app-level metrics —
+# distinct from kafka-exporter-podmonitor.yaml, which scrapes broker/topic
+# metrics via Strimzi's exporter).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: splitwise-producer
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      # Matches the labels on producer-rollout.yaml's pod template.
+      app.kubernetes.io/name: splitwise-export
+      app.kubernetes.io/component: producer
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

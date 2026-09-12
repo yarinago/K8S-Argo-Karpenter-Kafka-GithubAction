@@ -1,0 +1,25 @@
+# Kafka cluster + producer/loadgen Rollouts + Kafka UI for AWS dev — the
+# same runtime layer local uses, via the shared base in
+# Environment/resources/. Doesn't include the Splitwise web/consumer
+# container from the app repo yet (that's a separate, not-yet-built
+# piece — see Environment/aws/argocd/apps/README.md).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: splitwise-runtime
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+    targetRevision: develop
+    path: Environment/aws/argocd/apps/dev/splitwise/runtime
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: splitwise-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

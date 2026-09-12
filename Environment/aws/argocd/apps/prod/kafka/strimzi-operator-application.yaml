@@ -1,0 +1,36 @@
+# Argo CD Application that installs the Strimzi Cluster Operator — same
+# chart/pattern as Environment/local's and the AWS dev copy, pointed at
+# this cluster's own values file (watchNamespaces: splitwise only, since
+# this cluster only ever hosts prod).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-strimzi
+  namespace: argocd
+  annotations:
+    # Early wave: Kafka/KafkaTopic/etc. custom resources (created by the
+    # splitwise-runtime Application) need this operator's CRDs to exist first.
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://strimzi.io/charts/
+      chart: strimzi-kafka-operator
+      targetRevision: 0.51.0
+      helm:
+        releaseName: strimzi
+        valueFiles:
+          - $values/Environment/aws/argocd/values/strimzi-values-prod.yaml
+    # This source only exists so the Helm values file above can be loaded via $values.
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infrastructure
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

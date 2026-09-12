@@ -1,0 +1,12 @@
+# AWS dev overlay: same shared runtime base local uses, namespaced into
+# splitwise-dev. Only the ingress differs from local (ALB + external-dns
+# here instead of Traefik + localtest.me) — everything else is identical
+# on purpose, this is the same Kafka/producer/loadgen layer either way.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: splitwise-dev
+
+resources:
+  - ../../../../../../resources/splitwise-runtime/base
+  - kafka-ui-ingress.yaml
