@@ -111,6 +111,20 @@ jobs:
       - name: Plan 01-cluster
         if: inputs.action == 'plan'
         working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/01-cluster
+        env:
+          # Resolves to this job's own environment (aws-dev / aws-prod)
+          # secret of the same name — GitHub prefers an environment-scoped
+          # secret over a repo-level one automatically, so one secret name
+          # here correctly picks the right environment's value with no
+          # branching logic needed. Falls back to '{}' (matching the
+          # variable's own default) so an environment that hasn't had this
+          # secret configured yet doesn't break Terraform with an empty
+          # string where a map is expected. Populate it from the app
+          # repo's own decrypted secret (`sops -d
+          # k8s/overlays/dev/secret.enc.yaml` there) — never from the app
+          # repo's GitHub secrets directly, which no workflow anywhere can
+          # ever read back out once set, by GitHub's own design.
+          TF_VAR_splitwise_app_config: ${{ secrets.SPLITWISE_APP_CONFIG || '{}' }}
         run: |
           terraform init -input=false
           {
@@ -150,6 +164,8 @@ jobs:
       - name: Apply 01-cluster
         if: inputs.action == 'apply'
         working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/01-cluster
+        env:
+          TF_VAR_splitwise_app_config: ${{ secrets.SPLITWISE_APP_CONFIG || '{}' }}
         run: |
           terraform init -input=false
           terraform apply -input=false -auto-approve
