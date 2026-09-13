@@ -16,8 +16,8 @@
 # fast destroy/recreate loop would hit constantly.
 resource "aws_secretsmanager_secret" "this" {
   for_each                = toset(var.secret_names)
-  name                     = "${var.path_prefix}/${each.value}"
-  recovery_window_in_days  = 0
+  name                    = "${var.path_prefix}/${each.value}"
+  recovery_window_in_days = 0
 }
 
 # for_each can't take var.secret_values directly: Terraform hard-blocks a

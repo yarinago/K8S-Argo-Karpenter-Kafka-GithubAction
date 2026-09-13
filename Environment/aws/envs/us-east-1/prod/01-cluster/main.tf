@@ -37,11 +37,11 @@ module "vpc" {
 
 module "eks" {
   source                  = "../../../../models/eks"
-  cluster_name             = local.cluster_name
-  vpc_id                   = module.vpc.vpc_id
-  private_subnet_ids       = module.vpc.private_subnet_ids
-  bootstrap_instance_type  = "t3.large"
-  admin_principal_arn      = [local.admin_iam_user_arn, local.github_actions_role_arn]
+  cluster_name            = local.cluster_name
+  vpc_id                  = module.vpc.vpc_id
+  private_subnet_ids      = module.vpc.private_subnet_ids
+  bootstrap_instance_type = "t3.large"
+  admin_principal_arn     = [local.admin_iam_user_arn, local.github_actions_role_arn]
 }
 
 module "karpenter" {
@@ -64,13 +64,13 @@ module "secrets" {
 }
 
 module "iam_oidc" {
-  source               = "../../../../models/iam-oidc"
-  cluster_name          = local.cluster_name
-  oidc_provider_arn     = module.eks.oidc_provider_arn
-  oidc_provider_url     = module.eks.oidc_provider_url
-  node_iam_role_arn     = module.karpenter.node_iam_role_arn
-  secrets_path_prefix   = "splitwise/prod/"
-  hosted_zone_arn       = "arn:aws:route53:::hostedzone/${data.terraform_remote_state.dns.outputs.hosted_zone_id}"
+  source              = "../../../../models/iam-oidc"
+  cluster_name        = local.cluster_name
+  oidc_provider_arn   = module.eks.oidc_provider_arn
+  oidc_provider_url   = module.eks.oidc_provider_url
+  node_iam_role_arn   = module.karpenter.node_iam_role_arn
+  secrets_path_prefix = "splitwise/prod/"
+  hosted_zone_arn     = "arn:aws:route53:::hostedzone/${data.terraform_remote_state.dns.outputs.hosted_zone_id}"
 }
 
 # Standalone, not inside models/eks's cluster_addons — see the comment on
