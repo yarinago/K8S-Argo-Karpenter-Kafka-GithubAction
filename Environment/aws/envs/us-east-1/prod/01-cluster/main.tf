@@ -49,6 +49,24 @@ module "karpenter" {
   cluster_name = local.cluster_name
 }
 
+# Standard "delegate to IAM" key policy — see dev/01-cluster/main.tf's
+# identical pattern for why.
+data "aws_iam_policy_document" "secrets_kms" {
+  #checkov:skip=CKV_AWS_356:AWS's own standard "enable IAM user permissions" statement -- see dev/01-cluster/main.tf's identical pattern.
+  #checkov:skip=CKV_AWS_109:Same reasoning -- delegates permission management to IAM, doesn't perform it.
+  #checkov:skip=CKV_AWS_111:Same reasoning -- the standard delegation grant, not an unconstrained write grant on its own.
+  statement {
+    sid    = "EnableIAMUserPermissions"
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+    actions   = ["kms:*"]
+    resources = ["*"]
+  }
+}
+
 # Customer-managed, not the AWS-managed aws/secretsmanager default — see
 # dev/01-cluster/main.tf's comment on the same resource. Separate key from
 # dev's on purpose — same reasoning as everything else in this project
@@ -57,6 +75,7 @@ resource "aws_kms_key" "secrets" {
   description             = "Customer-managed key for ${local.cluster_name}'s Secrets Manager secrets"
   deletion_window_in_days = 7
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.secrets_kms.json
 }
 
 resource "aws_kms_alias" "secrets" {

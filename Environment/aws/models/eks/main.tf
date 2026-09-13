@@ -1,7 +1,6 @@
 module "eks" {
-  source = "terraform-aws-modules/eks/aws"
-  # Exact pin, not a ~> range — see models/vpc/main.tf's comment on the
-  # same choice.
+  #checkov:skip=CKV_TF_1:Registry module, not git-sourced -- see models/vpc/main.tf's identical skip for why. Exact-pinned below.
+  source  = "terraform-aws-modules/eks/aws"
   version = "20.37.2"
 
   cluster_name    = var.cluster_name

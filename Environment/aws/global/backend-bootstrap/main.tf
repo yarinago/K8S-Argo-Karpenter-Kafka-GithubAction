@@ -1,5 +1,39 @@
 data "aws_caller_identity" "current" {}
 
+# Standard "delegate to IAM" key policy — functionally equivalent to what
+# AWS applies by default when no policy is given (full account-root
+# access), just made explicit rather than implicit. Real permission
+# decisions still happen via IAM (AdministratorAccess for admins), not
+# here; this just satisfies the requirement that a KMS key actually
+# define a policy instead of relying on an implicit default.
+data "aws_iam_policy_document" "tfstate_kms" {
+  #checkov:skip=CKV_AWS_356:This is AWS's own standard "enable IAM user permissions" statement -- literally what the AWS Console generates by default for every new KMS key. It doesn't itself grant anyone any permission; it only delegates the decision to IAM, where AdministratorAccess (for admins) is the actual grant. Removing this "*" would make the key policy MORE restrictive than IAM, which is the opposite of the point.
+  #checkov:skip=CKV_AWS_109:Same reasoning -- this statement enables IAM to manage permissions on the key, it doesn't perform permissions management itself.
+  #checkov:skip=CKV_AWS_111:Same reasoning -- "kms:*" here is the standard delegation-to-IAM grant, not an unconstrained write grant to a principal; actual write access still requires a separate IAM allow.
+  statement {
+    sid    = "EnableIAMUserPermissions"
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+    actions   = ["kms:*"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_kms_key" "tfstate" {
+  description             = "Customer-managed key for the shared Terraform state bucket"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.tfstate_kms.json
+}
+
+resource "aws_kms_alias" "tfstate" {
+  name          = "alias/${var.project}-tfstate"
+  target_key_id = aws_kms_key.tfstate.key_id
+}
+
 # One state bucket, shared by every root via distinct state keys
 # (envs/us-east-1/dev/01-cluster/terraform.tfstate,
 # global/dns/terraform.tfstate, etc.) set in each root's own backend
@@ -9,35 +43,10 @@ data "aws_caller_identity" "current" {}
 # Deleting an environment never touches this bucket; only
 # destroy_environment.sh --nuke-backend does, and only after both
 # environments are already destroyed.
-resource "aws_kms_key" "tfstate" {
-  description             = "Customer-managed key for the shared Terraform state bucket"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
-}
-
-resource "aws_kms_alias" "tfstate" {
-  name          = "alias/${var.project}-tfstate"
-  target_key_id = aws_kms_key.tfstate.key_id
-}
-
-# checkov:skip=CKV2_AWS_61: Explicit no-op-if-unset lifecycle would just
-# duplicate this rule; the real content is here, not absent. Expires
-# noncurrent versions rather than the current one — versioning + a real
-# lifecycle rule both need to exist for this check regardless of what the
-# rule actually does, so the rule itself is the point, not a placeholder.
-# checkov:skip=CKV_AWS_18: Access logging needs a second, separate
-# logging-target bucket (never log to the bucket being logged) — real
-# setup cost for a Terraform state bucket only this project's own CI/CLI
-# ever touches, not a public-facing data store with third-party access to
-# audit.
-# checkov:skip=CKV_AWS_144: Cross-region replication is for data that's
-# genuinely irreplaceable. This bucket only holds Terraform state, which
-# is fully reconstructable by re-applying — not worth doubling storage
-# cost and adding a second region's worth of infra to protect.
-# checkov:skip=CKV2_AWS_62: Event notifications need an SNS/SQS/Lambda
-# target with its own IAM wiring — real setup cost with no clear consumer
-# for "a Terraform state object changed" events in a solo-account project.
 resource "aws_s3_bucket" "tfstate" {
+  #checkov:skip=CKV_AWS_18:Access logging needs a second, separate logging-target bucket (never log to the bucket being logged) -- real setup cost for a Terraform state bucket only this project's own CI/CLI ever touches, not a public-facing data store with third-party access to audit.
+  #checkov:skip=CKV_AWS_144:Cross-region replication is for data that's genuinely irreplaceable. This bucket only holds Terraform state, which is fully reconstructable by re-applying -- not worth doubling storage cost and a second region's infra to protect it.
+  #checkov:skip=CKV2_AWS_62:Event notifications need an SNS/SQS/Lambda target with its own IAM wiring -- real setup cost with no clear consumer for "a Terraform state object changed" events in a solo-account project.
   bucket = "${var.project}-tfstate-${data.aws_caller_identity.current.account_id}"
 
   # force_destroy = true, and intentionally no lifecycle
@@ -114,30 +123,17 @@ resource "aws_s3_bucket_public_access_block" "tfstate" {
 # adopting a pre-existing terraform-bootstrap user into this state for the
 # first time, run this first:
 #   terraform import aws_iam_user.terraform_bootstrap terraform-bootstrap
-#
-# checkov:skip=CKV_AWS_273: This IS the identity that bootstraps SSO/OIDC
-# for everything else in the project (github-oidc's first apply has
-# nothing else to authenticate as yet — see ../README.md's "Account
-# Bootstrap"). A chicken-and-egg an IAM Identity Center policy can't
-# resolve: something has to exist before any federated auth exists at all.
 resource "aws_iam_user" "terraform_bootstrap" {
+  #checkov:skip=CKV_AWS_273:This IS the identity that bootstraps SSO/OIDC for everything else in the project (github-oidc's first apply has nothing else to authenticate as yet -- see ../README.md's "Account Bootstrap"). A chicken-and-egg an IAM Identity Center policy can't resolve: something has to exist before any federated auth exists at all.
   name = "terraform-bootstrap"
 }
 
 # Idempotent at the AWS API level even if this policy is already attached
 # out-of-band (AttachUserPolicy on an already-attached ARN just succeeds),
 # so this needs no import step of its own.
-#
-# checkov:skip=CKV_AWS_40: Attaching to a group would just be an extra
-# layer of indirection for a group of exactly one user — no real
-# least-privilege benefit for a solo-account project's one bootstrap
-# identity.
-# checkov:skip=CKV_AWS_274: Same reasoning as github-oidc's identical
-# attachment (see that file) — the real access boundary for this identity
-# is that it's the one human operator's own credential, not a
-# hand-written policy that would just drift out of sync with every new
-# resource type this project adds.
 resource "aws_iam_user_policy_attachment" "terraform_bootstrap_admin" {
+  #checkov:skip=CKV_AWS_40:Attaching to a group would just be an extra layer of indirection for a group of exactly one user -- no real least-privilege benefit for a solo-account project's one bootstrap identity.
+  #checkov:skip=CKV_AWS_274:Same reasoning as github-oidc's identical attachment (see that file) -- the real access boundary for this identity is that it's the one human operator's own credential, not a hand-written policy that would just drift out of sync with every new resource type this project adds.
   user       = aws_iam_user.terraform_bootstrap.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }

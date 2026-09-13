@@ -50,12 +50,10 @@ resource "aws_iam_role_policy_attachment" "ssm" {
 # events, and this queue is a few cents at most, so it stays wired up
 # rather than skipped.
 resource "aws_sqs_queue" "karpenter_interruption" {
+  #checkov:skip=CKV2_AWS_73:AWS-managed key (no per-key cost, always exists) is enough here -- this queue only ever carries EC2/health event metadata Karpenter already reads via the EC2 API anyway, not confidential data that benefits from a dedicated customer-managed key.
   name                      = "${var.cluster_name}-karpenter"
   message_retention_seconds = 300
-  # AWS-managed key (no per-key cost, always exists) — this queue only ever
-  # carries EC2/health event metadata Karpenter already reads via the EC2
-  # API anyway, not a resource worth a dedicated customer-managed key.
-  kms_master_key_id = "alias/aws/sqs"
+  kms_master_key_id         = "alias/aws/sqs"
 }
 
 resource "aws_sqs_queue_policy" "karpenter_interruption" {

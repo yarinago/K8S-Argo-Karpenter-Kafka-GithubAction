@@ -73,10 +73,8 @@ resource "aws_iam_role" "github_actions_terraform" {
 # VPC/EKS/IAM/Karpenter/Secrets Manager/Route53/ACM/SQS/Budgets would be
 # hundreds of lines and drift out of sync with every new resource type this
 # project adds. Revisit if this ever becomes a shared/team account.
-#
-# checkov:skip=CKV_AWS_274: See comment above — deliberate, documented
-# tradeoff for this project's actual size, not an oversight.
 resource "aws_iam_role_policy_attachment" "github_actions_admin" {
+  #checkov:skip=CKV_AWS_274:See comment above -- deliberate, documented tradeoff for this project's actual size, not an oversight.
   role       = aws_iam_role.github_actions_terraform.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }

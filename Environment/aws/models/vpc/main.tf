@@ -4,12 +4,8 @@
 # here. If this ever needs to look more production-like, flip
 # single_nat_gateway to false.
 module "vpc" {
-  source = "terraform-aws-modules/vpc/aws"
-  # Exact pin, not a ~> range — a range means a future `terraform init`
-  # could silently pull a newer module version with no corresponding code
-  # change. Registry modules don't support git commit-hash pinning the way
-  # git-sourced modules do; an exact version is the equivalent practice
-  # for this source type. Bump deliberately, not automatically.
+  #checkov:skip=CKV_TF_1:Registry module (terraform-aws-modules/vpc/aws), not git-sourced -- there's no commit hash to pin here at all, only a version number. Exact-pinned (not a ~> range) below, which is the practical equivalent for this source type: a future `terraform init` can't silently pull a newer version with no corresponding code change.
+  source  = "terraform-aws-modules/vpc/aws"
   version = "5.21.0"
 
   name = var.name

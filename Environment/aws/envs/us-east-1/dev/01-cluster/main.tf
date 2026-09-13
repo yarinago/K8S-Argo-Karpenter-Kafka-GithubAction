@@ -46,6 +46,27 @@ module "karpenter" {
   cluster_name = local.cluster_name
 }
 
+# Standard "delegate to IAM" key policy — see global/backend-bootstrap's
+# identical pattern on its own KMS key for why. Real permission decisions
+# happen via IAM: AdministratorAccess for admins, external-secrets' scoped
+# kms:Decrypt grant (module.iam_oidc, below) for the one role that
+# actually needs to read these secrets at runtime.
+data "aws_iam_policy_document" "secrets_kms" {
+  #checkov:skip=CKV_AWS_356:AWS's own standard "enable IAM user permissions" statement -- see global/backend-bootstrap's identical pattern. Doesn't itself grant anyone anything; it only delegates to IAM, where AdministratorAccess and external-secrets' scoped kms:Decrypt are the actual grants.
+  #checkov:skip=CKV_AWS_109:Same reasoning -- delegates permission management to IAM, doesn't perform it.
+  #checkov:skip=CKV_AWS_111:Same reasoning -- the standard delegation grant, not an unconstrained write grant on its own.
+  statement {
+    sid    = "EnableIAMUserPermissions"
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+    actions   = ["kms:*"]
+    resources = ["*"]
+  }
+}
+
 # Customer-managed, not the AWS-managed aws/secretsmanager default — real
 # credentials (Splitwise API tokens) warrant it, and it's cheap for the
 # volume of Secrets Manager API calls a two-secret, single-environment
@@ -57,6 +78,7 @@ resource "aws_kms_key" "secrets" {
   description             = "Customer-managed key for ${local.cluster_name}'s Secrets Manager secrets"
   deletion_window_in_days = 7
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.secrets_kms.json
 }
 
 resource "aws_kms_alias" "secrets" {
