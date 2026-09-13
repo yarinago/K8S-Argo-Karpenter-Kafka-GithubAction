@@ -10,6 +10,28 @@ resource "kubernetes_namespace" "external_secrets" {
   }
 }
 
+# The cluster ships with a "gp2" StorageClass out of the box, but it uses
+# the deprecated in-tree "kubernetes.io/aws-ebs" provisioner — removed
+# from the Kubernetes controller-manager well before this cluster's
+# version, so any PVC using it just hangs Pending forever. This one uses
+# the EBS CSI driver addon (models/eks + the standalone aws_eks_addon
+# resource in this env's 01-cluster) instead, which actually works.
+# Not marked as the default StorageClass on purpose — anything that
+# needs persistence (Prometheus, Loki) sets storageClassName explicitly,
+# so nothing silently depends on which class happens to be default.
+resource "kubernetes_storage_class" "gp3" {
+  metadata {
+    name = "gp3"
+  }
+  storage_provisioner    = "ebs.csi.aws.com"
+  reclaim_policy          = "Delete"
+  volume_binding_mode     = "WaitForFirstConsumer"
+  allow_volume_expansion  = true
+  parameters = {
+    type = "gp3"
+  }
+}
+
 # --- Karpenter -------------------------------------------------------------
 # Runs in kube-system on the bootstrap node group — the only node that
 # exists before Karpenter itself can provision anything. No taint/

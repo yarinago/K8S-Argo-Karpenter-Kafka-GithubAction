@@ -10,6 +10,23 @@ resource "kubernetes_namespace" "external_secrets" {
   }
 }
 
+# See dev/02-platform/main.tf's comment on this same resource — the
+# cluster's built-in "gp2" StorageClass uses the deprecated in-tree
+# provisioner and doesn't actually work; this one uses the EBS CSI driver
+# addon instead.
+resource "kubernetes_storage_class" "gp3" {
+  metadata {
+    name = "gp3"
+  }
+  storage_provisioner    = "ebs.csi.aws.com"
+  reclaim_policy          = "Delete"
+  volume_binding_mode     = "WaitForFirstConsumer"
+  allow_volume_expansion  = true
+  parameters = {
+    type = "gp3"
+  }
+}
+
 # --- Karpenter -------------------------------------------------------------
 # Runs in kube-system on the bootstrap node group — the only node that
 # exists before Karpenter itself can provision anything. No taint/
