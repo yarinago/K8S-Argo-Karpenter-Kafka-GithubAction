@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - splitwise-runtime-application.yaml
+  - splitwise-app-application.yaml
