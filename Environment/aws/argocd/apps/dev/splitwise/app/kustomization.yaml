@@ -30,3 +30,26 @@ resources:
   - configmap.yaml
   - external-secret.yaml
   - ingress.yaml
+
+# Patch, not an app-repo change: both containers already run as
+# runAsUser/runAsGroup 10001 (per-container securityContext, in the
+# Deployment as pulled from the app repo unmodified), but a freshly
+# provisioned EBS/gp3 volume is root-owned by default — without a
+# pod-level fsGroup too, the non-root containers can't write to it at all
+# ("sqlite3.OperationalError: unable to open database file"), hit live.
+# local's k3d storage provisioner doesn't have this restriction, which is
+# why this never surfaced there.
+patches:
+  - target:
+      kind: Deployment
+      name: splitwise-export
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: splitwise-export
+      spec:
+        template:
+          spec:
+            securityContext:
+              fsGroup: 10001

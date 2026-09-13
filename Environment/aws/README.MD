@@ -138,17 +138,21 @@ CPU/memory limits on both are starting guardrails derived from local's measured 
 
 Missing this secret doesn't break anything — `splitwise_app_config` just falls back to `{}` (its own default), same as before this existed, so an environment that hasn't set it up yet still applies cleanly with an empty secret container.
 
-### URL scheme (decided, not yet wired into Ingress code)
+### URL scheme
 
-Domain is `splitwise.click`. Prod's main app takes the bare apex rather than a redundant `splitwise.splitwise.click`; everything else is a subdomain, dev gets a `dev.`/`-dev` prefix:
+Domain is `splitwise.click`. Prod's main app takes the bare apex rather than a redundant `splitwise.splitwise.click`; everything else is a subdomain, dev gets a `dev.`/`-dev` prefix. All of these are real, live ALB + `external-dns` Ingresses (HTTPS via cert auto-discovery against the wildcard cert below) once their Argo CD Application exists for that environment:
 
-| Service | Prod | Dev |
+| Service | Dev | Prod |
 |---|---|---|
-| Splitwise app | `splitwise.click` | `dev.splitwise.click` |
-| Grafana | `grafana.splitwise.click` | `grafana-dev.splitwise.click` |
-| Argo CD | `argocd.splitwise.click` | `argocd-dev.splitwise.click` |
+| Splitwise app | `dev.splitwise.click` | `splitwise.click` (app/monitoring/argo-rollouts not yet built for prod — see `argocd/apps/README.md`) |
+| Grafana | `grafana-dev.splitwise.click` | `grafana.splitwise.click` |
+| Prometheus | `prometheus-dev.splitwise.click` | `prometheus.splitwise.click` |
+| Alertmanager | `alertmanager-dev.splitwise.click` | `alertmanager.splitwise.click` |
+| Kafka UI | `kafka-ui-dev.splitwise.click` | `kafka-ui.splitwise.click` |
+| Argo Rollouts dashboard | `rollouts-dev.splitwise.click` | `rollouts.splitwise.click` |
+| Argo CD | no Ingress — `kubectl port-forward svc/argocd-server -n argocd 8080:443`, same as local's before its own access Application existed | same |
 
-The wildcard cert from `global/dns` (`*.splitwise.click` + the apex itself) already covers all of these — no cert changes needed. Actual hostnames get wired into Ingress resources / `external-dns` annotations in `envs/*/02-platform` and the app overlays, not written yet.
+The wildcard cert from `global/dns` (`*.splitwise.click` + the apex itself) already covers all of these — no cert changes needed per service, and no `certificate-arn` hardcoded anywhere (the ALB controller finds the cert by matching the Ingress hostname against it instead, since the cert's ARN isn't stable across a `dns` re-apply).
 
 ## Teardown
 

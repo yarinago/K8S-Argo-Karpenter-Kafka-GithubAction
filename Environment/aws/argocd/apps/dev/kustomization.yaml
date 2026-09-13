@@ -10,3 +10,4 @@ resources:
   - kafka
   - splitwise
   - monitoring
+  - argo-rollouts

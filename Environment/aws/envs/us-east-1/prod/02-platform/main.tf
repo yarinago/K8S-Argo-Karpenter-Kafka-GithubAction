@@ -13,10 +13,15 @@ resource "kubernetes_namespace" "external_secrets" {
 # See dev/02-platform/main.tf's comment on this same resource — the
 # cluster's built-in "gp2" StorageClass uses the deprecated in-tree
 # provisioner and doesn't actually work; this one uses the EBS CSI driver
-# addon instead.
+# addon instead. Marked as the cluster default for the same reason
+# explained there (the app repo's own PVC has no storageClassName and
+# can't be patched without editing that repo).
 resource "kubernetes_storage_class" "gp3" {
   metadata {
     name = "gp3"
+    annotations = {
+      "storageclass.kubernetes.io/is-default-class" = "true"
+    }
   }
   storage_provisioner    = "ebs.csi.aws.com"
   reclaim_policy         = "Delete"
@@ -319,6 +324,21 @@ resource "helm_release" "argocd" {
   version          = var.argocd_chart_version
 }
 
+# Cascade-delete finalizer is what makes `terraform destroy` actually safe
+# here: without it, destroying this one object just removes the root
+# Application CR itself and leaves every app it fanned out into (grafana,
+# prometheus, splitwise-app, external-secrets' ExternalSecret CRs, ALB-
+# backed Ingresses, ...) running completely unmanaged. Since this resource
+# depends_on helm_release.argocd, Terraform destroys it BEFORE argocd,
+# external_secrets, and alb_controller -- so with the finalizer, Argo CD's
+# own controller (still alive at that point) properly prunes everything
+# it owns first, including handing each Ingress/ExternalSecret back to its
+# real controller for correct cleanup (ALB deletion, finalizer removal)
+# while that controller is still running. Hit live (on dev) without this:
+# an orphaned ExternalSecret CR hung external-secrets' CRD deletion for
+# the full 5-minute helm uninstall timeout, and 4 ALBs (plus their target
+# groups and security groups) were left permanently orphaned in AWS once
+# alb_controller was uninstalled out from under their still-live Ingresses.
 resource "kubectl_manifest" "argocd_root_app" {
   depends_on = [helm_release.argocd]
   yaml_body  = <<-YAML
@@ -327,6 +347,8 @@ resource "kubectl_manifest" "argocd_root_app" {
     metadata:
       name: aws-bootstrap-root
       namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
     spec:
       project: default
       source:
