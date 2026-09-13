@@ -13,6 +13,5 @@
 # .terraform.lock.hcl is intentionally NOT ignored — it pins provider
 # versions/hashes and should be committed for reproducible applies.
 
-# Claude Code — settings.json is project config (shared, commit it);
-# settings.local.json is per-machine overrides, never shared.
-.claude/settings.local.json
+# Claude Code — kept out of version control entirely, by request.
+.claude/
