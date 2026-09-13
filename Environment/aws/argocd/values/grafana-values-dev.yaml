@@ -1,0 +1,66 @@
+# Standalone grafana/grafana chart — same reasoning as local's (see that
+# values file's header comment).
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    external-dns.alpha.kubernetes.io/hostname: grafana-dev.splitwise.click
+    argocd.argoproj.io/ignore-healthcheck: "true"
+    argocd.argoproj.io/ignore-default-links: "true"
+    link.argocd.argoproj.io/external-link: https://grafana-dev.splitwise.click
+  hosts:
+    - grafana-dev.splitwise.click
+  path: /
+  pathType: Prefix
+
+grafana.ini:
+  auth.anonymous:
+    enabled: true
+    org_role: Viewer
+  auth:
+    disable_login_form: true
+
+# Same explicit-datasources approach as local — the standalone chart has
+# no auto-wiring for a same-release Prometheus/Alertmanager, and there
+# isn't one here either (separate releases). Service names are identical
+# to local's: same chart, same Helm release names, regardless of cluster.
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        url: http://prometheus-kube-prometheus-prometheus.infrastructure:9090/
+        access: proxy
+        isDefault: true
+        jsonData:
+          httpMethod: POST
+          timeInterval: 30s
+      - name: Alertmanager
+        type: alertmanager
+        uid: alertmanager
+        url: http://alertmanager-kube-promethe-alertmanager.infrastructure:9093/
+        access: proxy
+        jsonData:
+          handleGrafanaManagedAlerts: false
+          implementation: prometheus
+      - name: Loki
+        type: loki
+        uid: loki-splitwise
+        url: http://loki:3100
+        access: proxy
+        isDefault: false
+        jsonData:
+          maxLines: 1000
+
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    searchNamespace: ALL

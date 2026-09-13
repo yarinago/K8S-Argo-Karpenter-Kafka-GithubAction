@@ -9,7 +9,4 @@ kind: Kustomization
 resources:
   - kafka
   - splitwise
-
-# Not yet built here: the monitoring stack (Prometheus/Alertmanager/
-# Grafana/Loki) and the Splitwise app's own web/consumer container from
-# the app repo — see Environment/aws/argocd/apps/README.md for status.
+  - monitoring

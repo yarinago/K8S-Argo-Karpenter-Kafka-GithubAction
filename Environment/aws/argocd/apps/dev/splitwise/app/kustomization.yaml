@@ -9,10 +9,14 @@
 # has no ksops installed to run) is never invoked — only these three
 # plain, self-contained files are ever touched.
 #
-# service-monitor.yaml is deliberately left out — no Prometheus Operator
-# CRDs on AWS yet (no monitoring stack here, see ../../../README.md), so
-# including it would fail the sync outright ("no matches for kind
-# ServiceMonitor").
+# service-monitor.yaml is now included — the monitoring stack
+# (../../monitoring/) exists, with prometheus-operator's CRDs landing at
+# sync-wave -1, before this Application's default wave 0, so the CRD is
+# guaranteed to exist by the time this ServiceMonitor applies. Its
+# `release: monitoring` label doesn't need to match anything — Prometheus
+# here uses an empty (match-everything) serviceMonitorSelector, same
+# reasoning as prometheus-extra's ServiceMonitors using a different label
+# entirely.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -22,6 +26,7 @@ resources:
   - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/deployment.yaml
   - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/service.yaml
   - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/pvc.yaml
+  - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/service-monitor.yaml
   - configmap.yaml
   - external-secret.yaml
   - ingress.yaml

@@ -1,4 +1,7 @@
-# Raw manifests the prometheus Application deploys alongside the Helm chart.
+# Raw manifests the prometheus Application deploys alongside the Helm chart
+# — shared between local and AWS (same ServiceMonitors/PrometheusRules
+# either way; neither references anything environment-specific), same
+# reasoning as Environment/resources/splitwise-runtime/base/.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
