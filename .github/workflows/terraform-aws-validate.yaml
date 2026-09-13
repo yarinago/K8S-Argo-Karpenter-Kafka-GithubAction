@@ -60,7 +60,7 @@ jobs:
       - name: terraform validate (every root)
         run: |
           set -euo pipefail
-          for dir in Environment/aws/global/* Environment/aws/envs/*/*; do
+          for dir in Environment/aws/global/* Environment/aws/envs/*/*/*; do
             [ -f "$dir/main.tf" ] || [ -f "$dir/provider.tf" ] || continue
             echo "== validating $dir =="
             (cd "$dir" && terraform init -backend=false -input=false >/dev/null && terraform validate)
@@ -74,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           tflint --init
-          for dir in Environment/aws/global/* Environment/aws/envs/*/* Environment/aws/models/*; do
+          for dir in Environment/aws/global/* Environment/aws/envs/*/*/* Environment/aws/models/*; do
             [ -f "$dir/main.tf" ] || [ -f "$dir/provider.tf" ] || continue
             echo "== tflint $dir =="
             tflint --chdir "$dir"
