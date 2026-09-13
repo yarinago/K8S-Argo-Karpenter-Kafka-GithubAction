@@ -52,6 +52,10 @@ resource "aws_iam_role_policy_attachment" "ssm" {
 resource "aws_sqs_queue" "karpenter_interruption" {
   name                      = "${var.cluster_name}-karpenter"
   message_retention_seconds = 300
+  # AWS-managed key (no per-key cost, always exists) — this queue only ever
+  # carries EC2/health event metadata Karpenter already reads via the EC2
+  # API anyway, not a resource worth a dedicated customer-managed key.
+  kms_master_key_id = "alias/aws/sqs"
 }
 
 resource "aws_sqs_queue_policy" "karpenter_interruption" {

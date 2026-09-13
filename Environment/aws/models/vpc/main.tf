@@ -4,8 +4,13 @@
 # here. If this ever needs to look more production-like, flip
 # single_nat_gateway to false.
 module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 5.0"
+  source = "terraform-aws-modules/vpc/aws"
+  # Exact pin, not a ~> range — a range means a future `terraform init`
+  # could silently pull a newer module version with no corresponding code
+  # change. Registry modules don't support git commit-hash pinning the way
+  # git-sourced modules do; an exact version is the equivalent practice
+  # for this source type. Bump deliberately, not automatically.
+  version = "5.21.0"
 
   name = var.name
   cidr = var.vpc_cidr

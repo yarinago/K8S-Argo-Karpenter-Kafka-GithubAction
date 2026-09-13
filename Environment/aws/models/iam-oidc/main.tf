@@ -5,6 +5,25 @@ data "aws_caller_identity" "current" {}
 # Actions per Karpenter's own getting-started IAM policy — verify against
 # https://karpenter.sh/docs/getting-started/getting-started-with-karpenter/
 # before first apply; these are revised across Karpenter minor versions.
+#
+# checkov:skip=CKV_AWS_108: Karpenter's own required policy, not a custom
+# one — it has to run RunInstances/CreateFleet/etc. against EC2 resources
+# that don't exist yet at policy-authoring time (new instances it's about
+# to create), which is structurally incompatible with a resource-level
+# ARN restriction. Matches AWS's own published Karpenter IAM examples.
+# checkov:skip=CKV_AWS_109: Same reasoning — iam:CreateInstanceProfile/
+# AddRoleToInstanceProfile/etc. need "*" for the same structural reason
+# (managing profiles Karpenter itself creates at runtime, no ARN to scope
+# to in advance).
+# checkov:skip=CKV_AWS_356: Same reasoning again — every "*" resource
+# statement below is on an action AWS's IAM model doesn't support
+# resource-level restriction for at all (EC2 Describe*, pricing:*, the
+# instance-profile lifecycle actions), not a scoping choice that was
+# skipped.
+# checkov:skip=CKV_AWS_111: Same — the "write" actions flagged here
+# (RunInstances, CreateFleet, instance-profile management) are exactly
+# the ones Karpenter's own getting-started policy requires unscoped, by
+# design of how it works.
 data "aws_iam_policy_document" "karpenter" {
   statement {
     sid    = "AllowScopedEC2InstanceActions"
@@ -95,6 +114,12 @@ module "karpenter_irsa" {
 }
 
 # --- external-dns ---------------------------------------------------------
+# checkov:skip=CKV_AWS_356: Only the second statement (List*) uses "*",
+# and it has to — ListHostedZones/ListResourceRecordSets/ListTagsForResource
+# are List-category Route53 APIs that don't accept a resource ARN at all;
+# there's no more specific value to put there. The statement that actually
+# writes records (ChangeResourceRecordSets, above) is already scoped to
+# exactly one hosted zone ARN.
 data "aws_iam_policy_document" "external_dns" {
   statement {
     effect    = "Allow"
@@ -136,6 +161,18 @@ data "aws_iam_policy_document" "external_secrets" {
       "secretsmanager:DescribeSecret",
     ]
     resources = ["arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.secrets_path_prefix}*"]
+  }
+
+  # Required because these secrets use a customer-managed KMS key, not the
+  # AWS-managed default — see secrets_kms_key_arn's description. Scoped to
+  # exactly this one key, not "*".
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+    ]
+    resources = [var.secrets_kms_key_arn]
   }
 }
 

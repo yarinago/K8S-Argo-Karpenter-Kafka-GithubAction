@@ -8,6 +8,10 @@ data "aws_route53_zone" "root" {
 # grafana-dev.<domain>, argocd.<domain>, argocd-dev.<domain>, ...) — a cert
 # isn't a security boundary between dev and prod the way IAM/secrets are,
 # so sharing one here is simpler with no real downside.
+#
+# checkov:skip=CKV2_AWS_71: Deliberate, not an oversight — see comment
+# above. Every subdomain this project will ever add reuses the same cert
+# instead of requesting (and DNS-validating) a new one each time.
 resource "aws_acm_certificate" "wildcard" {
   domain_name       = "*.${var.domain_name}"
   validation_method = "DNS"

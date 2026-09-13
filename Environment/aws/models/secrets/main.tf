@@ -14,10 +14,19 @@
 # `terraform apply` from recreating a secret of the same name shortly after
 # a destroy ("still scheduled for deletion") — exactly the failure mode a
 # fast destroy/recreate loop would hit constantly.
+#
+# checkov:skip=CKV2_AWS_57: Automatic rotation needs a per-secret-type
+# rotation Lambda — AWS ships one for its own credential types (RDS, etc.),
+# but SPLITWISE_CLIENT_SECRET/SPLITWISE_ACCESS_TOKEN_JSON aren't an AWS-
+# native type, so this would mean writing and maintaining a custom
+# rotation function against Splitwise's own OAuth API. Real engineering
+# effort disproportionate to this project's stage; revisit if this secret
+# ever needs it for real.
 resource "aws_secretsmanager_secret" "this" {
   for_each                = toset(var.secret_names)
   name                    = "${var.path_prefix}/${each.value}"
   recovery_window_in_days = 0
+  kms_key_id              = var.kms_key_arn
 }
 
 # for_each can't take var.secret_values directly: Terraform hard-blocks a

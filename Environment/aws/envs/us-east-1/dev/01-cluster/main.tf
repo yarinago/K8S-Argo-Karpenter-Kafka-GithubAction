@@ -46,10 +46,29 @@ module "karpenter" {
   cluster_name = local.cluster_name
 }
 
+# Customer-managed, not the AWS-managed aws/secretsmanager default — real
+# credentials (Splitwise API tokens) warrant it, and it's cheap for the
+# volume of Secrets Manager API calls a two-secret, single-environment
+# setup actually makes. external-secrets' IRSA role (module.iam_oidc,
+# below) needs its own explicit kms:Decrypt grant on this key — a
+# customer-managed key, unlike the default one, doesn't implicitly grant
+# decrypt to anyone with secretsmanager:GetSecretValue.
+resource "aws_kms_key" "secrets" {
+  description             = "Customer-managed key for ${local.cluster_name}'s Secrets Manager secrets"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+}
+
+resource "aws_kms_alias" "secrets" {
+  name          = "alias/${local.cluster_name}-secrets"
+  target_key_id = aws_kms_key.secrets.key_id
+}
+
 module "secrets" {
   source       = "../../../../models/secrets"
   path_prefix  = "splitwise/dev"
   secret_names = ["kafka-credentials", "app-config"]
+  kms_key_arn  = aws_kms_key.secrets.arn
   # jsonencode happens here so whoever supplies splitwise_app_config (via
   # a gitignored terraform.tfvars or TF_VAR_splitwise_app_config) just
   # writes a normal flat HCL map — no manual JSON-string-escaping — and
@@ -67,6 +86,7 @@ module "iam_oidc" {
   oidc_provider_url   = module.eks.oidc_provider_url
   node_iam_role_arn   = module.karpenter.node_iam_role_arn
   secrets_path_prefix = "splitwise/dev/"
+  secrets_kms_key_arn = aws_kms_key.secrets.arn
   hosted_zone_arn     = "arn:aws:route53:::hostedzone/${data.terraform_remote_state.dns.outputs.hosted_zone_id}"
 }
 
