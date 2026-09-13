@@ -130,6 +130,14 @@ CPU/memory limits on both are starting guardrails derived from local's measured 
 
 `recovery_window_in_days = 0` on these secrets is deliberate, not a shortcut — this project destroys/recreates environments often, and the default 7-30 day recovery window would block recreating a same-named secret shortly after a destroy.
 
+**`terraform-aws-envs.yaml` populates `splitwise_app_config` automatically** — no manual copy-paste. It checks out the app repo (`splitwise-household-expenses`, public), decrypts its `k8s/base/configmap.yaml` and `k8s/overlays/<env>/secret.enc.yaml` with SOPS, and merges both into the 13-key map Terraform expects — the same source of truth the app itself decrypts locally via KSOPS, so it can never go stale. This needs one one-time secret per environment:
+
+- **Where**: this repo's Settings → Environments → `aws-dev` (and later `aws-prod`) → Environment secrets → New secret
+- **Name**: `SOPS_AGE_KEY`
+- **Value**: the contents of `~/.config/sops/age/keys.txt` — the private half of the same age keypair already used for the local cluster and the app repo's own overlays
+
+Missing this secret doesn't break anything — `splitwise_app_config` just falls back to `{}` (its own default), same as before this existed, so an environment that hasn't set it up yet still applies cleanly with an empty secret container.
+
 ### URL scheme (decided, not yet wired into Ingress code)
 
 Domain is `splitwise.click`. Prod's main app takes the bare apex rather than a redundant `splitwise.splitwise.click`; everything else is a subdomain, dev gets a `dev.`/`-dev` prefix:
