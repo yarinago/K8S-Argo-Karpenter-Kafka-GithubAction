@@ -1,0 +1,89 @@
+crds:
+  enabled: false
+prometheusOperator:
+  enabled: false
+alertmanager:
+  enabled: false
+grafana:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: true
+nodeExporter:
+  enabled: true
+
+kubeControllerManager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+coreDns:
+  enabled: false
+
+prometheus:
+  enabled: true
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      # HTTPS via cert auto-discovery, not a hardcoded certificate-arn —
+      # see Environment/aws/argocd/apps/dev/splitwise/runtime/kafka-ui-ingress.yaml
+      # for why.
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      external-dns.alpha.kubernetes.io/hostname: prometheus-dev.splitwise.click
+      argocd.argoproj.io/ignore-default-links: "true"
+      link.argocd.argoproj.io/external-link: https://prometheus-dev.splitwise.click
+    hosts:
+      - prometheus-dev.splitwise.click
+    paths:
+      - /
+    pathType: Prefix
+  prometheusSpec:
+    # 15d, not local's throwaway 2d — this is a real environment now, and
+    # losing history on every pod restart isn't acceptable for it the way
+    # it was for a disposable k3d cluster.
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+    # Same Go-template gotcha local's comment already explains: an empty {}
+    # selector is falsy, so it silently restricts discovery to
+    # release: prometheus-labeled resources unless these are explicitly
+    # false.
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    ruleSelector: {}
+    ruleNamespaceSelector: {}
+    # Same as local — the chart only auto-wires Prometheus to Alertmanager
+    # when they're the same release; point at it explicitly since they're
+    # separate releases here too.
+    alertingEndpoints:
+      - namespace: infrastructure
+        name: alertmanager-kube-promethe-alertmanager
+        port: http-web
+        apiVersion: v2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1536Mi

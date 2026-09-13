@@ -1,0 +1,26 @@
+# The Splitwise app's own web/consumer container, on AWS, without any
+# change to the app repo — see ./app/kustomization.yaml for how it pulls
+# in the app repo's Deployment/Service/PVC directly (by raw URL) while
+# supplying config/secrets exclusively via Secrets Manager (the
+# ExternalSecret in that same directory), the industry-standard delivery
+# path for production AWS secrets — not SOPS-in-git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: splitwise-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+    targetRevision: develop
+    path: Environment/aws/argocd/apps/dev/splitwise/app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: splitwise-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

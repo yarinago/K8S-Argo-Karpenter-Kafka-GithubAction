@@ -1,0 +1,227 @@
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
+# --- Karpenter controller -----------------------------------------------
+# Actions per Karpenter's own getting-started IAM policy — verify against
+# https://karpenter.sh/docs/getting-started/getting-started-with-karpenter/
+# before first apply; these are revised across Karpenter minor versions.
+data "aws_iam_policy_document" "karpenter" {
+  #checkov:skip=CKV_AWS_108:Karpenter's own required policy, not a custom one -- it has to run RunInstances/CreateFleet/etc. against EC2 resources that don't exist yet at policy-authoring time (new instances it's about to create), structurally incompatible with a resource-level ARN restriction. Matches AWS's own published Karpenter IAM examples.
+  #checkov:skip=CKV_AWS_109:Same reasoning -- iam:CreateInstanceProfile/AddRoleToInstanceProfile/etc. need "*" for the same structural reason (managing profiles Karpenter itself creates at runtime, no ARN to scope to in advance).
+  #checkov:skip=CKV_AWS_356:Same reasoning again -- every "*" resource statement below is on an action AWS's IAM model doesn't support resource-level restriction for at all (EC2 Describe*, pricing:*, the instance-profile lifecycle actions), not a scoping choice that was skipped.
+  #checkov:skip=CKV_AWS_111:Same -- the "write" actions flagged here (RunInstances, CreateFleet, instance-profile management) are exactly the ones Karpenter's own getting-started policy requires unscoped, by design of how it works.
+  statement {
+    sid    = "AllowScopedEC2InstanceActions"
+    effect = "Allow"
+    actions = [
+      "ec2:RunInstances",
+      "ec2:CreateFleet",
+      "ec2:CreateLaunchTemplate",
+      "ec2:CreateTags",
+      "ec2:TerminateInstances",
+      "ec2:DeleteLaunchTemplate",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "AllowScopedEC2DescribeActions"
+    effect = "Allow"
+    actions = [
+      "ec2:DescribeLaunchTemplates",
+      "ec2:DescribeInstances",
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeImages",
+      "ec2:DescribeInstanceTypes",
+      "ec2:DescribeInstanceTypeOfferings",
+      "ec2:DescribeAvailabilityZones",
+      "ec2:DescribeSpotPriceHistory",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "AllowPricing"
+    effect    = "Allow"
+    actions   = ["pricing:GetProducts", "ssm:GetParameter"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "AllowPassingInstanceRole"
+    effect    = "Allow"
+    actions   = ["iam:PassRole"]
+    resources = [var.node_iam_role_arn]
+  }
+
+  statement {
+    sid    = "AllowInstanceProfileManagement"
+    effect = "Allow"
+    actions = [
+      "iam:CreateInstanceProfile",
+      "iam:TagInstanceProfile",
+      "iam:AddRoleToInstanceProfile",
+      "iam:RemoveRoleFromInstanceProfile",
+      "iam:DeleteInstanceProfile",
+      "iam:GetInstanceProfile",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "AllowEKSClusterRead"
+    effect    = "Allow"
+    actions   = ["eks:DescribeCluster"]
+    resources = ["arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"]
+  }
+
+  statement {
+    sid    = "AllowInterruptionQueueActions"
+    effect = "Allow"
+    actions = [
+      "sqs:DeleteMessage",
+      "sqs:GetQueueUrl",
+      "sqs:ReceiveMessage",
+    ]
+    resources = ["arn:aws:sqs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${var.cluster_name}-karpenter"]
+  }
+}
+
+module "karpenter_irsa" {
+  source            = "../iam-oidc/irsa-role"
+  role_name         = "${var.cluster_name}-karpenter-controller"
+  oidc_provider_arn = var.oidc_provider_arn
+  oidc_provider_url = var.oidc_provider_url
+  namespace         = "kube-system"
+  service_account   = "karpenter"
+  policy_json       = data.aws_iam_policy_document.karpenter.json
+}
+
+# --- external-dns ---------------------------------------------------------
+data "aws_iam_policy_document" "external_dns" {
+  #checkov:skip=CKV_AWS_356:Only the second statement (List*) uses "*", and it has to -- ListHostedZones/ListResourceRecordSets/ListTagsForResource are List-category Route53 APIs that don't accept a resource ARN at all; there's no more specific value to put there. The statement that actually writes records (ChangeResourceRecordSets, above) is already scoped to exactly one hosted zone ARN.
+  statement {
+    effect    = "Allow"
+    actions   = ["route53:ChangeResourceRecordSets"]
+    resources = [var.hosted_zone_arn]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "route53:ListHostedZones",
+      "route53:ListResourceRecordSets",
+      "route53:ListTagsForResource",
+    ]
+    resources = ["*"]
+  }
+}
+
+module "external_dns_irsa" {
+  source            = "../iam-oidc/irsa-role"
+  role_name         = "${var.cluster_name}-external-dns"
+  oidc_provider_arn = var.oidc_provider_arn
+  oidc_provider_url = var.oidc_provider_url
+  namespace         = "infrastructure"
+  service_account   = "external-dns"
+  policy_json       = data.aws_iam_policy_document.external_dns.json
+}
+
+# --- external-secrets -------------------------------------------------
+# Scoped to this cluster's own environment path only — the dev cluster's
+# ESO role cannot read splitwise/prod/* secrets and vice versa, since each
+# cluster has an entirely separate OIDC provider/role, not just a namespace
+# boundary.
+data "aws_iam_policy_document" "external_secrets" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret",
+    ]
+    resources = ["arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.secrets_path_prefix}*"]
+  }
+
+  # Required because these secrets use a customer-managed KMS key, not the
+  # AWS-managed default — see secrets_kms_key_arn's description. Scoped to
+  # exactly this one key, not "*".
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+    ]
+    resources = [var.secrets_kms_key_arn]
+  }
+}
+
+module "external_secrets_irsa" {
+  source            = "../iam-oidc/irsa-role"
+  role_name         = "${var.cluster_name}-external-secrets"
+  oidc_provider_arn = var.oidc_provider_arn
+  oidc_provider_url = var.oidc_provider_url
+  namespace         = "external-secrets"
+  service_account   = "external-secrets"
+  policy_json       = data.aws_iam_policy_document.external_secrets.json
+}
+
+# --- AWS Load Balancer Controller -----------------------------------------
+# Policy JSON is NOT hand-written here — it's ~40 statements maintained
+# upstream and revised with each controller release. Fetch the canonical
+# version once before first apply:
+#   curl -o files/alb-controller-policy.json \
+#     https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json
+# and re-fetch it whenever the controller's Helm chart version bumps.
+module "alb_controller_irsa" {
+  source            = "../iam-oidc/irsa-role"
+  role_name         = "${var.cluster_name}-alb-controller"
+  oidc_provider_arn = var.oidc_provider_arn
+  oidc_provider_url = var.oidc_provider_url
+  namespace         = "infrastructure"
+  service_account   = "aws-load-balancer-controller"
+  policy_json       = file("${path.module}/files/alb-controller-policy.json")
+}
+
+# --- EBS CSI driver ---------------------------------------------------
+# Built directly here instead of via the irsa-role submodule: every other
+# role above attaches a custom inline policy (policy_json), but this one
+# uses AWS's own managed AmazonEBSCSIDriverPolicy — the officially blessed
+# setup for this specific addon, not something to hand-maintain a copy of.
+# Required, not optional: without this role, the EBS CSI controller pods
+# have no AWS API permissions, crash-loop, and the EKS addon never reaches
+# ACTIVE — hit and diagnosed live (20min timeout, "waiting for EKS Add-On
+# ... create: timeout while waiting for state to become 'ACTIVE'").
+data "aws_iam_policy_document" "ebs_csi_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [var.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${var.oidc_provider_url}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${var.oidc_provider_url}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ebs_csi" {
+  name               = "${var.cluster_name}-ebs-csi-driver"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_trust.json
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  role       = aws_iam_role.ebs_csi.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}

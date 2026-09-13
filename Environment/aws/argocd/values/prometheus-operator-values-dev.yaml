@@ -1,0 +1,35 @@
+# Only the CRDs and the operator — same split as local's. Prometheus,
+# Alertmanager, Grafana, kube-state-metrics, and node-exporter are
+# installed by sibling Applications as separate Helm releases.
+crds:
+  enabled: true
+
+prometheusOperator:
+  enabled: true
+
+prometheus:
+  enabled: false
+alertmanager:
+  enabled: false
+grafana:
+  enabled: false
+kubeStateMetrics:
+  enabled: false
+nodeExporter:
+  enabled: false
+
+# EKS is a managed control plane — kube-controller-manager, etcd, and the
+# scheduler aren't network-reachable at all (AWS runs them, not this
+# account), same underlying reason local disables these for k3d even
+# though the specific tooling differs. kube-proxy/coreDNS are left off
+# too, for parity with local rather than a hard technical requirement.
+kubeControllerManager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+coreDns:
+  enabled: false

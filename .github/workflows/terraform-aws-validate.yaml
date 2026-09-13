@@ -1,0 +1,189 @@
+name: Terraform (AWS validate)
+
+# PR-only validation for Environment/aws — fmt/validate/tflint/checkov,
+# plus a read-only plan against both envs/dev and envs/prod, posted for
+# review. Nothing here ever applies; this is a review-gate, not a
+# deploy path.
+#
+# Plan output goes three places: the raw step log (colored, since
+# terraform's own ANSI output isn't touched there), the job's Markdown
+# summary, and a sticky PR comment that updates in place on every push
+# instead of piling up a new one each time. The summary/comment copies use
+# -no-color + a ```diff fence, which is what gives them +/- coloring in
+# GitHub's renderer — ANSI escape codes don't survive inside a Markdown
+# code fence, so this is a real tradeoff, not a free upgrade.
+#
+# Explicitly scoped to PRs targeting develop or main. dev can be deployed
+# from any branch (terraform-aws-envs.yaml, target_dev), so this gate's
+# value there is review/confidence before merging, not the only path to
+# verify a change — but prod can ONLY ever be deployed from main (enforced
+# in terraform-aws-envs.yaml's "Restrict prod to main" step, since OIDC's
+# trust policy has no visibility into which env a run targets), which
+# makes a PR into main the actual last checkpoint before anything can
+# touch prod.
+#
+# The plan job works from a PR opened against develop/main from ANY source
+# branch — global/github-oidc's trust policy allows
+# repo:<org>/<repo>:pull_request regardless of source ref, separately from
+# (and in addition to) the any-branch access it grants for direct pushes.
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "Environment/aws/**"
+      - ".github/workflows/terraform-aws-validate.yaml"
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+  pull-requests: write   # for plan-comment on PRs
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.16.0"
+
+jobs:
+  lint-and-validate:
+    name: fmt / validate / tflint / checkov
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: terraform fmt (check only)
+        run: terraform fmt -check -recursive Environment/aws
+
+      - name: terraform validate (every root)
+        run: |
+          set -euo pipefail
+          for dir in Environment/aws/global/* Environment/aws/envs/*/*/*; do
+            [ -f "$dir/main.tf" ] || [ -f "$dir/provider.tf" ] || continue
+            echo "== validating $dir =="
+            (cd "$dir" && terraform init -backend=false -input=false >/dev/null && terraform validate)
+          done
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: tflint (every root)
+        run: |
+          set -euo pipefail
+          tflint --init
+          for dir in Environment/aws/global/* Environment/aws/envs/*/*/* Environment/aws/models/*; do
+            [ -f "$dir/main.tf" ] || [ -f "$dir/provider.tf" ] || continue
+            echo "== tflint $dir =="
+            tflint --chdir "$dir"
+          done
+
+      - name: Checkov (security/config scan)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: Environment/aws
+          framework: terraform
+          soft_fail: false   # HIGH/CRITICAL findings fail the build, same bar as Milestone 5's Trivy gate
+
+  plan:
+    name: terraform plan
+    needs: lint-and-validate
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Plan-only, both environments, posted for review — never applies.
+      - name: Plan dev
+        working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/dev/01-cluster
+        run: |
+          terraform init -input=false
+          terraform plan -input=false -no-color | tee /tmp/plan-dev.txt
+
+      - name: Plan prod
+        working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/prod/01-cluster
+        run: |
+          terraform init -input=false
+          terraform plan -input=false -no-color | tee /tmp/plan-prod.txt
+
+      - name: Write plan job summary
+        if: always()
+        run: |
+          {
+            echo "## dev / 01-cluster plan"
+            echo '```diff'
+            cat /tmp/plan-dev.txt 2>/dev/null || echo "(no output — plan step didn't complete)"
+            echo '```'
+            echo "## prod / 01-cluster plan"
+            echo '```diff'
+            cat /tmp/plan-prod.txt 2>/dev/null || echo "(no output — plan step didn't complete)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Posts one sticky comment per PR (found and updated by its hidden
+      # marker, not re-created on every push) rather than piling up a new
+      # comment on every commit.
+      - name: Post plan as a PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- terraform-aws-validate-plan -->';
+            const read = (path) => {
+              try { return fs.readFileSync(path, 'utf8'); }
+              catch { return "(no output — plan step didn't complete)"; }
+            };
+            const body = [
+              marker,
+              '### Terraform plan (envs/dev and envs/prod)',
+              '<details><summary>dev / 01-cluster</summary>',
+              '',
+              '```diff',
+              read('/tmp/plan-dev.txt'),
+              '```',
+              '</details>',
+              '<details><summary>prod / 01-cluster</summary>',
+              '',
+              '```diff',
+              read('/tmp/plan-prod.txt'),
+              '```',
+              '</details>',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

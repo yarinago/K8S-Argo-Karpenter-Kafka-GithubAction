@@ -1,0 +1,27 @@
+# Same pattern as ../runtime/kafka-ui-ingress.yaml — ALB + external-dns
+# instead of local's Traefik + localtest.me, HTTPS via cert auto-discovery
+# rather than a hardcoded certificate-arn (see that file's comment for why).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: splitwise-export
+  namespace: splitwise-dev
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    external-dns.alpha.kubernetes.io/hostname: dev.splitwise.click
+spec:
+  rules:
+    - host: dev.splitwise.click
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: splitwise-export
+                port:
+                  number: 80

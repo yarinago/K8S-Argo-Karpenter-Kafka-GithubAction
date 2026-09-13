@@ -1,0 +1,36 @@
+# AWS equivalent of local's kafka-ui-ingress.yaml — same backend
+# service/port, ALB + external-dns annotations instead of Traefik +
+# localtest.me. external-dns (installed by envs/us-east-1/dev/02-platform) watches
+# for this annotation and creates the Route53 record automatically; the
+# ALB controller (same root) provisions the load balancer itself.
+#
+# HTTPS via cert auto-discovery, not a hardcoded certificate-arn: the ACM
+# cert from global/dns uses create_before_destroy, so its ARN isn't stable
+# across a dns re-apply — a static ARN in this checked-in file would go
+# stale silently. Omitting certificate-arn lets the ALB controller find a
+# matching cert itself by hostname (acm:ListCertificates/DescribeCertificate
+# — already in its IAM policy), which is stable regardless of ARN churn.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kafka-ui
+  namespace: splitwise-dev
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    external-dns.alpha.kubernetes.io/hostname: kafka-ui-dev.splitwise.click
+spec:
+  rules:
+    - host: kafka-ui-dev.splitwise.click
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kafka-ui
+                port:
+                  number: 80

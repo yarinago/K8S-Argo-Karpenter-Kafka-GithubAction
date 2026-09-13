@@ -1,0 +1,22 @@
+# Scrapes the kafka-exporter sidecar Strimzi runs alongside the Kafka
+# cluster (enabled via kafkaExporter in kafka-cluster.yaml). This is what
+# feeds the kafka_* metrics (broker count, consumer lag, partition offsets,
+# ISR) used throughout the Splitwise Kafka Observability Grafana dashboard.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: splitwise-kafka-exporter
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      # Strimzi's own labels on the exporter pod it manages — not labels
+      # this repo set manually, so they must match Strimzi's convention
+      # exactly (component-type, not component).
+      strimzi.io/cluster: splitwise-kafka
+      strimzi.io/component-type: kafka-exporter
+  podMetricsEndpoints:
+    - targetPort: 9404
+      path: /metrics
+      interval: 30s

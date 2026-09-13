@@ -1,0 +1,29 @@
+# AWS prod overlay: same shared runtime base local and AWS dev use,
+# namespaced into splitwise. Only the ingress differs from local (ALB +
+# external-dns here instead of Traefik + localtest.me).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: splitwise
+
+resources:
+  - ../../../../../../resources/splitwise-runtime/base
+  - kafka-ui-ingress.yaml
+
+patches:
+  # Prod keeps more rollback depth than the base/dev default (3) — same
+  # reasoning as local's prod overlay.
+  - target:
+      kind: Rollout
+      name: splitwise-producer
+    patch: |-
+      - op: replace
+        path: /spec/revisionHistoryLimit
+        value: 10
+  - target:
+      kind: Rollout
+      name: splitwise-loadgen
+    patch: |-
+      - op: replace
+        path: /spec/revisionHistoryLimit
+        value: 10

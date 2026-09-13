@@ -1,0 +1,32 @@
+# deployment.yaml/service.yaml/pvc.yaml are pulled straight from the app
+# repo's k8s/base by raw GitHub URL, not a local path across repos —
+# Kustomize's default security sandbox blocks referencing individual
+# files outside this directory's own tree (verified live: the local-path
+# version of this failed with "file is not in or below" the build root),
+# but a remote URL isn't a local path at all, so it isn't subject to that
+# restriction. This also means base/'s own kustomization.yaml (and its
+# KSOPS generator for the encrypted configmap.yaml, which this cluster
+# has no ksops installed to run) is never invoked — only these three
+# plain, self-contained files are ever touched.
+#
+# service-monitor.yaml is now included — the monitoring stack
+# (../../monitoring/) exists, with prometheus-operator's CRDs landing at
+# sync-wave -1, before this Application's default wave 0, so the CRD is
+# guaranteed to exist by the time this ServiceMonitor applies. Its
+# `release: monitoring` label doesn't need to match anything — Prometheus
+# here uses an empty (match-everything) serviceMonitorSelector, same
+# reasoning as prometheus-extra's ServiceMonitors using a different label
+# entirely.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: splitwise-dev
+
+resources:
+  - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/deployment.yaml
+  - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/service.yaml
+  - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/pvc.yaml
+  - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/service-monitor.yaml
+  - configmap.yaml
+  - external-secret.yaml
+  - ingress.yaml
