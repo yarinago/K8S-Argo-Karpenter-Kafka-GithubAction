@@ -23,6 +23,17 @@ resource "helm_release" "karpenter" {
   chart      = "karpenter"
   version    = var.karpenter_chart_version
 
+  # Chart default is 2, with a topology-spread constraint requiring
+  # separate nodes — harmless (leader election means only one replica is
+  # ever active) but leaves the second permanently Pending on a
+  # single-node bootstrap cluster with no HA requirement anywhere else in
+  # this project. 1 replica matches that scale and keeps `kubectl get
+  # pods -A` actually clean.
+  set {
+    name  = "replicas"
+    value = "1"
+  }
+
   set {
     name  = "settings.clusterName"
     value = local.cluster_name
