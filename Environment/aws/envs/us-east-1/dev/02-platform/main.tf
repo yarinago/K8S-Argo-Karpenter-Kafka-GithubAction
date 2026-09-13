@@ -16,12 +16,19 @@ resource "kubernetes_namespace" "external_secrets" {
 # version, so any PVC using it just hangs Pending forever. This one uses
 # the EBS CSI driver addon (models/eks + the standalone aws_eks_addon
 # resource in this env's 01-cluster) instead, which actually works.
-# Not marked as the default StorageClass on purpose — anything that
-# needs persistence (Prometheus, Loki) sets storageClassName explicitly,
-# so nothing silently depends on which class happens to be default.
+# Marked as the cluster default: the app repo's own pvc.yaml (pulled in
+# unmodified by splitwise/app/kustomization.yaml — no app-repo changes,
+# see that file) has no storageClassName at all, and with no default
+# class its PVC just sits unbound forever ("must define a storage
+# class") — hit live. gp3 is the only StorageClass in this cluster that
+# actually works (gp2's provisioner is deprecated/removed, see above), so
+# there's no real ambiguity being introduced by making it the default.
 resource "kubernetes_storage_class" "gp3" {
   metadata {
     name = "gp3"
+    annotations = {
+      "storageclass.kubernetes.io/is-default-class" = "true"
+    }
   }
   storage_provisioner    = "ebs.csi.aws.com"
   reclaim_policy         = "Delete"
@@ -323,6 +330,21 @@ resource "helm_release" "argocd" {
   version          = var.argocd_chart_version
 }
 
+# Cascade-delete finalizer is what makes `terraform destroy` actually safe
+# here: without it, destroying this one object just removes the root
+# Application CR itself and leaves every app it fanned out into (grafana,
+# prometheus, splitwise-app, external-secrets' ExternalSecret CRs, ALB-
+# backed Ingresses, ...) running completely unmanaged. Since this resource
+# depends_on helm_release.argocd, Terraform destroys it BEFORE argocd,
+# external_secrets, and alb_controller -- so with the finalizer, Argo CD's
+# own controller (still alive at that point) properly prunes everything
+# it owns first, including handing each Ingress/ExternalSecret back to its
+# real controller for correct cleanup (ALB deletion, finalizer removal)
+# while that controller is still running. Hit live without this: an
+# orphaned ExternalSecret CR hung external-secrets' CRD deletion for the
+# full 5-minute helm uninstall timeout, and 4 ALBs (plus their target
+# groups and security groups) were left permanently orphaned in AWS once
+# alb_controller was uninstalled out from under their still-live Ingresses.
 resource "kubectl_manifest" "argocd_root_app" {
   depends_on = [helm_release.argocd]
   yaml_body  = <<-YAML
@@ -331,6 +353,8 @@ resource "kubectl_manifest" "argocd_root_app" {
     metadata:
       name: aws-bootstrap-root
       namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
     spec:
       project: default
       source:
