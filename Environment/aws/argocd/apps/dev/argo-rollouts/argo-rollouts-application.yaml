@@ -1,0 +1,42 @@
+# Argo CD Application that installs the Argo Rollouts controller + dashboard
+# — same chart/pattern as local's. Splitwise's producer/loadgen
+# (splitwise/runtime/, via the shared Environment/resources/splitwise-runtime
+# base) use Rollout resources for blue-green deployments; without this
+# controller and its CRDs installed first, that whole Application fails to
+# sync at all ("Rollout.argoproj.io not found") — hit live, including its
+# knock-on effect of the Kafka cluster in that same Application never
+# getting created either, since a kustomize sync failure blocks the whole
+# Application's sync, not just the offending resource.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-rollouts
+  namespace: argocd
+  annotations:
+    # Early wave: Rollout custom resources (created by splitwise-runtime,
+    # sync-wave unset/0 by default) need this controller's CRDs to exist
+    # first.
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-rollouts
+      targetRevision: 2.37.7
+      helm:
+        releaseName: argo-rollouts
+        valueFiles:
+          - $values/Environment/aws/argocd/values/argo-rollouts-values-dev.yaml
+    # This source only exists so the Helm values file above can be loaded via $values.
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: develop
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-rollouts
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
