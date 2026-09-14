@@ -39,6 +39,7 @@ module "eks" {
   private_subnet_ids      = module.vpc.private_subnet_ids
   bootstrap_instance_type = "t3.large"
   admin_principal_arn     = [local.admin_iam_user_arn, local.github_actions_role_arn]
+  karpenter_node_role_arn = module.karpenter.node_iam_role_arn
 }
 
 module "karpenter" {

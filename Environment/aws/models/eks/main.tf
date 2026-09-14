@@ -69,17 +69,34 @@ module "eks" {
     }
   }
 
-  access_entries = {
-    for arn in var.admin_principal_arn : arn => {
-      principal_arn = arn
-      policy_associations = {
-        admin = {
-          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-          access_scope = {
-            type = "cluster"
+  access_entries = merge(
+    {
+      for arn in var.admin_principal_arn : arn => {
+        principal_arn = arn
+        policy_associations = {
+          admin = {
+            policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+            access_scope = {
+              type = "cluster"
+            }
           }
         }
       }
+    },
+    # EC2_LINUX type entries are how a node IAM role authenticates to the
+    # API server at all -- no policy_associations (that's only for
+    # STANDARD/human-or-CI entries like admin_principal_arn above), the
+    # type itself is what grants node bootstrap permissions. The bootstrap
+    # managed node group doesn't need one here since
+    # eks_managed_node_groups creates its own automatically; Karpenter's
+    # node role is standalone (created in models/karpenter, not by this
+    # module) and needs its own entry, or its instances boot and pass EC2
+    # health checks fine but never actually join as a Node -- hit live.
+    {
+      karpenter_node = {
+        principal_arn = var.karpenter_node_role_arn
+        type          = "EC2_LINUX"
+      }
     }
-  }
+  )
 }

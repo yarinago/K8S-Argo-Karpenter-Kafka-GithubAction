@@ -65,6 +65,17 @@ data "aws_iam_policy_document" "karpenter" {
       "iam:RemoveRoleFromInstanceProfile",
       "iam:DeleteInstanceProfile",
       "iam:GetInstanceProfile",
+      # Missing originally -- EC2NodeClass reconciliation calls this (not
+      # just GetInstanceProfile) and fails with AccessDenied without it,
+      # which leaves the NodeClass never Ready, which leaves every NodePool
+      # "not ready" forever, so Karpenter silently refuses to provision ANY
+      # node at all. Latent since day one: never surfaced before because
+      # the single bootstrap node happened to have enough spare pod slots
+      # for whatever was running at the time. Hit live once Argo CD +
+      # external-secrets + external-dns + Karpenter itself all scheduled
+      # back onto that one node simultaneously and hit its pod-count limit,
+      # with Karpenter unable to scale out to relieve it.
+      "iam:ListInstanceProfiles",
     ]
     resources = ["*"]
   }

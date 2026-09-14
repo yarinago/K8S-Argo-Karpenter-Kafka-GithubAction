@@ -26,3 +26,8 @@ variable "bootstrap_instance_type" {
   type        = string
   default     = "t3.large"
 }
+
+variable "karpenter_node_role_arn" {
+  description = "IAM role Karpenter-launched EC2 instances boot under (models/karpenter's node_iam_role_arn output). Needs its own EC2-type access entry -- unlike eks_managed_node_groups' bootstrap group, whose access entry this module's own eks_managed_node_groups block creates automatically, this role is standalone (created outside this module, since Karpenter's node role doesn't need the cluster to already exist) and the EKS module has no way to know about it on its own. Without this, Karpenter-launched instances boot and pass AWS-side health checks fine but can never actually authenticate to the API server, so they sit forever with no Node object -- confirmed live: an instance can be `running`/`ok`/`ok` in EC2 for 7+ minutes and never register."
+  type        = string
+}
