@@ -53,3 +53,38 @@ patches:
           spec:
             securityContext:
               fsGroup: 10001
+
+  # Patch, not an app-repo change: the app's own /readyz (what the
+  # Deployment's readinessProbe hits) reports "not_ready" whenever it has
+  # no materialized dataset yet -- correct for its own purpose (telling the
+  # UI "still warming up"), but wrong as a Kubernetes readiness gate, since
+  # it keeps the pod out of the ALB target group (0 targets registered, a
+  # permanent 503 from outside) for as long as there's no data, even though
+  # the process itself is completely healthy and already serving 200s on
+  # every other route. Hit live: real Splitwise API access now requires a
+  # paid Pro subscription this account doesn't have (confirmed via the
+  # producer's own logs -- SplitwiseNotAllowedException, 403, "developer
+  # doesn't have an active Splitwise Pro subscription"), so no dataset will
+  # ever materialize here, and /readyz would 503 forever. The app also
+  # exposes /healthz, an unconditional liveness check with no such
+  # dependency -- pointing the K8s readinessProbe at that instead is the
+  # correct fix: it lets the pod (and therefore the real error, visible in
+  # the UI/API) actually reach real traffic, rather than gating traffic on
+  # a business-data condition Kubernetes has no business gating on.
+  - target:
+      kind: Deployment
+      name: splitwise-export
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: splitwise-export
+      spec:
+        template:
+          spec:
+            containers:
+              - name: web
+                readinessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: http
