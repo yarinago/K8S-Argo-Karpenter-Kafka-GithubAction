@@ -23,7 +23,7 @@ infra, real cost, real teardown discipline.
 Environment/aws/
   global/            # Account-level: state bucket, GitHub OIDC, DNS/cert (see below)
     backend-bootstrap/   # S3 state bucket + the terraform-bootstrap IAM user — manual, by hand, always
-    github-oidc/         # OIDC provider + github-actions-terraform role — manual for its first apply only
+    github-oidc/         # OIDC provider + github-actions-terraform role — manual for its first apply, and for any destroy, forever (see "GitHub Actions Workflows" below)
     dns/                 # Hosted zone lookup + wildcard ACM cert — CI-managed once bootstrapped
   models/            # Reusable modules, composed by envs/*
     vpc/, eks/, karpenter/, secrets/, iam-oidc/ (+ irsa-role/ submodule)
@@ -94,7 +94,7 @@ Three workflows, each with a distinct job:
 |---|---|---|
 | `terraform-aws-validate.yaml` | PR into `develop`/`main` | `fmt`/`validate`/`tflint`/`checkov`, then a read-only `plan` for both `envs/dev` and `envs/prod`. Never applies — a review gate before merging into either branch. |
 | `terraform-aws-envs.yaml` | Manual dispatch | `plan`/`apply`/`destroy` for `envs/dev` and/or `envs/prod` (two independent checkboxes — run either or both at once). The only place `destroy` exists as a button; calls `scripts/destroy_environment.sh` for that path. |
-| `terraform-aws-account-setup.yaml` | Manual dispatch | `plan`/`apply`/`destroy` for `global/github-oidc` and `global/dns` only — never `backend-bootstrap`, which stays manual forever (see above). |
+| `terraform-aws-account-setup.yaml` | Manual dispatch | `plan`/`apply` for `global/github-oidc` and `global/dns`, but `destroy` only for `global/dns` — `github-oidc`'s destroy step was deliberately removed (it can delete its own trust relationship as its last authorized action, breaking OIDC auth for every workflow, including itself, until someone re-bootstraps it locally by hand; hit live 2026-09-14). Like `backend-bootstrap`, destroying `github-oidc` is now a manual, local `terraform destroy` only, never a CI button. |
 
 All three authenticate via OIDC only — no stored AWS credentials anywhere. `terraform-aws-envs.yaml` and `terraform-aws-account-setup.yaml` both require typing an exact confirmation phrase before `destroy` runs, and use a GitHub Environment (`aws-dev`/`aws-prod`/`aws-account-setup`) so you can add required reviewers as a manual approval gate.
 
@@ -162,7 +162,7 @@ The wildcard cert from `global/dns` (`*.splitwise.click` + the apex itself) alre
 
 Drains Karpenter-provisioned nodes first (they're outside Terraform state), then destroys `02-platform`, then `01-cluster`. Never touches `global/` — the state bucket, OIDC role, and DNS/cert all survive an environment teardown. Same thing, via CI: `terraform-aws-envs.yaml`, `action=destroy`.
 
-To also tear down `github-oidc`/`dns`: `terraform-aws-account-setup.yaml`, `action=destroy` (after both environments are already gone — destroying `github-oidc` mid-flight would break OIDC auth for anything still running). Even that destroy never releases the domain itself — `dns` destroy only removes the hosted zone lookup and ACM cert it created; releasing a registered domain is a deliberate, separate manual action in the Route53 console, on purpose (nothing here should silently release something you paid for). `backend-bootstrap` is never destroyed by any workflow; if you ever want to remove it, that's a manual `terraform destroy` in that directory, same as its apply.
+To also tear down `dns`: `terraform-aws-account-setup.yaml`, `action=destroy` (after both environments are already gone). That destroy never releases the domain itself — `dns` destroy only removes the hosted zone lookup and ACM cert it created; releasing a registered domain is a deliberate, separate manual action in the Route53 console, on purpose (nothing here should silently release something you paid for). `github-oidc` and `backend-bootstrap` are never destroyed by any workflow; if you ever want to remove either, that's a manual, local `terraform destroy` in that directory, same as its apply — `github-oidc` in particular can delete its own trust relationship as its last authorized action, breaking OIDC auth for every workflow (including whatever destroyed it) until it's re-bootstrapped locally by hand, so this is deliberately never a CI button.
 
 ## Verification
 
