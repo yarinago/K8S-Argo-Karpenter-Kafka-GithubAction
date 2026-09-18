@@ -3,9 +3,9 @@ variable "cluster_name" {
 }
 
 variable "cluster_version" {
-  description = "Verified live against AWS (aws eks describe-addon-versions) rather than assumed — EKS ships a new minor version roughly every ~3 months, so any hardcoded default here goes stale fast. Check current support status before relying on this default long-term; older versions eventually roll off standard support into a paid \"extended support\" tier."
+  description = "Verified live against AWS (aws eks describe-cluster-versions) rather than assumed — EKS ships a new minor version roughly every ~3 months, so any hardcoded default here goes stale fast. Check current support status before relying on this default long-term; older versions eventually roll off standard support into a paid \"extended support\" tier."
   type        = string
-  default     = "1.35"
+  default     = "1.36"
 }
 
 variable "vpc_id" {
