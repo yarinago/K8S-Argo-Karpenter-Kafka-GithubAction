@@ -118,6 +118,21 @@ resource "kubectl_manifest" "nodepool_general" {
             - key: karpenter.k8s.aws/instance-category
               operator: In
               values: ["m", "c"]
+            # Without this, Karpenter's cheapest-first selection can pick
+            # a first-generation type like m1.small -- ancient, 1 vCPU/
+            # 1.7GB, and it doesn't actually work with the modern
+            # AL2023-based EKS-optimized AMI these NodeClasses use: the
+            # instance launches, fails to bootstrap/register as a Node,
+            # and Karpenter eventually terminates and retries, often
+            # picking the exact same bad type again. Hit live on dev: a
+            # pod sat Pending for 15+ minutes while Karpenter cycled
+            # through two separate m1.small launch attempts. Gt "1"
+            # excludes gen-1 families (m1/c1/t1/...) entirely -- the
+            # standard Karpenter best-practice constraint for exactly
+            # this failure mode.
+            - key: karpenter.k8s.aws/instance-generation
+              operator: Gt
+              values: ["1"]
           nodeClassRef:
             group: karpenter.k8s.aws
             kind: EC2NodeClass
@@ -175,6 +190,10 @@ resource "kubectl_manifest" "nodepool_batch" {
             - key: karpenter.k8s.aws/instance-category
               operator: In
               values: ["c"]
+            # See nodepool_general's identical constraint above for why.
+            - key: karpenter.k8s.aws/instance-generation
+              operator: Gt
+              values: ["1"]
           nodeClassRef:
             group: karpenter.k8s.aws
             kind: EC2NodeClass
