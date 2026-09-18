@@ -150,7 +150,7 @@ Domain is `splitwise.click`. Prod's main app takes the bare apex rather than a r
 | Alertmanager | `alertmanager-dev.splitwise.click` | `alertmanager.splitwise.click` |
 | Kafka UI | `kafka-ui-dev.splitwise.click` | `kafka-ui.splitwise.click` |
 | Argo Rollouts dashboard | `rollouts-dev.splitwise.click` | `rollouts.splitwise.click` |
-| Argo CD | no Ingress — `kubectl port-forward svc/argocd-server -n argocd 8080:443`, same as local's before its own access Application existed | same |
+| Argo CD | `argocd-dev.splitwise.click` (admin / `argocd-initial-admin-secret`; CLI needs `--grpc-web`, the ALB proxies grpc-web over HTTP/1.1, not raw gRPC) | `argocd.splitwise.click` |
 
 The wildcard cert from `global/dns` (`*.splitwise.click` + the apex itself) already covers all of these — no cert changes needed per service, and no `certificate-arn` hardcoded anywhere (the ALB controller finds the cert by matching the Ingress hostname against it instead, since the cert's ARN isn't stable across a `dns` re-apply).
 

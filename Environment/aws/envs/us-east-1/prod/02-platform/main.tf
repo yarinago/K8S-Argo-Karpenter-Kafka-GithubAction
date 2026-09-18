@@ -341,6 +341,28 @@ resource "helm_release" "argocd" {
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
   version          = var.argocd_chart_version
+
+  # See dev/02-platform/main.tf's identical block for the full reasoning
+  # (raw values instead of `set`, server.insecure requirement, --grpc-web
+  # CLI note). Hostname has no env suffix, matching prod's other bare-
+  # domain hosts (e.g. kafka-ui.${var.domain_name}) vs dev's `-dev` suffix.
+  values = [<<-YAML
+    configs:
+      params:
+        server.insecure: true
+    server:
+      ingress:
+        enabled: true
+        annotations:
+          kubernetes.io/ingress.class: alb
+          alb.ingress.kubernetes.io/scheme: internet-facing
+          alb.ingress.kubernetes.io/target-type: ip
+          alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+          alb.ingress.kubernetes.io/ssl-redirect: "443"
+          external-dns.alpha.kubernetes.io/hostname: argocd.${var.domain_name}
+        hostname: argocd.${var.domain_name}
+  YAML
+  ]
 }
 
 # Cascade-delete finalizer is what makes `terraform destroy` actually safe

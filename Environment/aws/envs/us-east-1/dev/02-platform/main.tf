@@ -346,6 +346,36 @@ resource "helm_release" "argocd" {
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
   version          = var.argocd_chart_version
+
+  # ALB-backed Ingress for the UI/CLI, same shape as every other Ingress in
+  # this project (ALB terminates TLS via the wildcard cert's auto-discovery,
+  # external-dns creates the Route53 record). A raw values block, not `set`
+  # blocks like this file's other helm_releases, because the annotations
+  # map has dotted keys AND comma-containing JSON values together --
+  # fragile to encode through `set`'s own escaping rules. server.insecure
+  # is required alongside it: argocd-server otherwise expects to speak TLS
+  # itself, but the ALB's backend traffic here is plain HTTP (same
+  # ssl-redirect-at-the-edge pattern used everywhere else), so without this
+  # the server would reject/redirect every request from the ALB. CLI access
+  # needs `argocd login argocd-dev.${var.domain_name} --grpc-web` (ALB
+  # doesn't proxy gRPC directly, only grpc-web over HTTP/1.1).
+  values = [<<-YAML
+    configs:
+      params:
+        server.insecure: true
+    server:
+      ingress:
+        enabled: true
+        annotations:
+          kubernetes.io/ingress.class: alb
+          alb.ingress.kubernetes.io/scheme: internet-facing
+          alb.ingress.kubernetes.io/target-type: ip
+          alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+          alb.ingress.kubernetes.io/ssl-redirect: "443"
+          external-dns.alpha.kubernetes.io/hostname: argocd-dev.${var.domain_name}
+        hostname: argocd-dev.${var.domain_name}
+  YAML
+  ]
 }
 
 # Cascade-delete finalizer is what makes `terraform destroy` actually safe
