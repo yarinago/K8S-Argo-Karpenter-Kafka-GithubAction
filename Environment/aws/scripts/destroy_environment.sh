@@ -113,11 +113,23 @@ if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$REGION" >/dev/null
   fi
 
   echo "-- Waiting for every Ingress/TargetGroupBinding/ExternalSecret cluster-wide to actually be gone (their controllers must still be running to clear these) --"
+  # `kubectl get <type>` on a CRD-backed type whose CRD no longer exists at
+  # all (e.g. externalsecrets, if a prior run's cleanup already let it fully
+  # delete) exits non-zero ("the server doesn't have a resource type..."),
+  # not zero-with-no-output -- under `pipefail` that non-zero survives
+  # `| wc -l` and trips `set -e`, killing the whole script right here with
+  # no diagnostic output. That's not a real failure, it's the type being
+  # legitimately absent (so trivially zero remaining) -- hit live right
+  # after the previous incident's cleanup had already removed the
+  # externalsecrets CRD. `|| true` on each kubectl call (not on the pipe
+  # overall) keeps a genuine zero-count distinguishable from this case
+  # while still letting `wc -l` count real output when the type does exist.
+  count_remaining() { kubectl get "$1" -A --no-headers 2>/dev/null | wc -l || true; }
   DEADLINE=$((SECONDS + 900))
   while [[ $SECONDS -lt $DEADLINE ]]; do
-    ING_COUNT=$(kubectl get ingress -A --no-headers 2>/dev/null | wc -l)
-    TGB_COUNT=$(kubectl get targetgroupbinding -A --no-headers 2>/dev/null | wc -l)
-    ES_COUNT=$(kubectl get externalsecret -A --no-headers 2>/dev/null | wc -l)
+    ING_COUNT=$(count_remaining ingress)
+    TGB_COUNT=$(count_remaining targetgroupbinding)
+    ES_COUNT=$(count_remaining externalsecret)
     if [[ "$ING_COUNT" -eq 0 && "$TGB_COUNT" -eq 0 && "$ES_COUNT" -eq 0 ]]; then
       echo "  All Ingresses/TargetGroupBindings/ExternalSecrets gone."
       break
@@ -125,9 +137,9 @@ if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$REGION" >/dev/null
     echo "  still remaining: $ING_COUNT ingress(es), $TGB_COUNT targetgroupbinding(s), $ES_COUNT externalsecret(s)... ($((DEADLINE - SECONDS))s left)"
     sleep 15
   done
-  REMAINING_ING=$(kubectl get ingress -A --no-headers 2>/dev/null | wc -l)
-  REMAINING_TGB=$(kubectl get targetgroupbinding -A --no-headers 2>/dev/null | wc -l)
-  REMAINING_ES=$(kubectl get externalsecret -A --no-headers 2>/dev/null | wc -l)
+  REMAINING_ING=$(count_remaining ingress)
+  REMAINING_TGB=$(count_remaining targetgroupbinding)
+  REMAINING_ES=$(count_remaining externalsecret)
   if [[ "$REMAINING_ING" -gt 0 || "$REMAINING_TGB" -gt 0 || "$REMAINING_ES" -gt 0 ]]; then
     echo "!! $REMAINING_ING ingress(es), $REMAINING_TGB targetgroupbinding(s), $REMAINING_ES externalsecret(s) still remain after 15 minutes."
     echo "!! Proceeding to terraform destroy anyway would risk orphaning their ALBs in AWS or hanging on their finalizers again"
