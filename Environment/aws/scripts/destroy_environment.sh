@@ -66,30 +66,75 @@ if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$REGION" >/dev/null
   # deleting it prunes everything Argo CD manages -- ExternalSecrets,
   # Ingresses (and the ALBs/target groups/security groups behind them),
   # etc. -- via each resource's own controller, while that controller is
-  # still running. That finalizer only fires when something actually
-  # deletes the Application object, though, and nothing in 02-platform's
-  # Terraform graph was forcing that to happen before Terraform's own
-  # destroy started tearing down alb_controller/external_secrets/argocd
-  # themselves -- those helm_releases only depend on alb_controller, not
-  # on argocd_root_app, so Terraform is free to destroy them in parallel
-  # with (or before) Argo CD ever gets a chance to prune. Hit live: an
-  # ExternalSecret in splitwise-dev got a deletionTimestamp but never lost
-  # its externalsecrets.external-secrets.io/externalsecret-cleanup
-  # finalizer, because external-secrets' own controller was already
-  # uninstalled by the time anything asked Argo CD to prune it -- the CRD
-  # deletion (and the whole `terraform destroy` run) hung on it for the
-  # full 5-minute helm uninstall timeout and failed outright. Deleting the
-  # Application here, explicitly, before Terraform touches anything,
-  # makes that ordering deterministic regardless of Terraform's own
-  # parallelism -- and sidesteps the dependency cycle a `depends_on` fix
-  # would hit (argocd_root_app already depends on argocd, which depends on
-  # alb_controller, so alb_controller can't also depend on argocd_root_app
-  # without Terraform rejecting it outright).
-  echo "-- Deleting the Argo CD root Application first, so it cascade-prunes everything it manages before those resources' own controllers get torn down --"
+  # still running. Nothing in 02-platform's Terraform graph forces that to
+  # happen before Terraform's own destroy tears down
+  # alb_controller/external_secrets/argocd themselves -- those helm_releases
+  # only depend on alb_controller, not on argocd_root_app, so Terraform is
+  # free to destroy them before Argo CD ever gets a chance to prune.
+  #
+  # A first version of this step just ran `kubectl delete application
+  # aws-bootstrap-root --timeout=300s || true` and moved on. That's not
+  # enough, for two reasons hit live in the same incident:
+  #   1. A 5-minute client-side wait isn't always enough for Argo CD to
+  #      finish cascading through ~10 child Applications, especially when
+  #      several own real ALBs that take AWS real time to deprovision --
+  #      and `|| true` swallowed the timeout and ran `terraform destroy`
+  #      anyway, which then hit the exact same stuck-finalizer wall on
+  #      whatever hadn't been pruned yet (this time on the `infrastructure`
+  #      namespace's Ingresses/TargetGroupBindings).
+  #   2. Argo CD's cascade isn't the only way these objects get a
+  #      deletionTimestamp -- `infrastructure` is a real
+  #      kubernetes_namespace Terraform resource, so Terraform's own
+  #      destroy deletes it directly, which triggers Kubernetes' own
+  #      namespace-content garbage collection independently of Argo CD
+  #      entirely. That GC hit the same missing-controller finalizers.
+  # By the time this was diagnosed, alb_controller's own helm release was
+  # already gone, orphaning 6 real ALBs (plus target groups and security
+  # groups) in AWS with nothing left to clean them up -- exactly the
+  # failure mode described in kubectl_manifest.argocd_root_app's own
+  # comment, just not fully prevented by depending on Argo CD's cascade
+  # alone. Required manual `aws elbv2`/`aws ec2` cleanup to recover.
+  #
+  # Fixed by not trusting the cascade to reach every resource in time:
+  # after asking Argo CD to prune (best-effort, still worth doing first so
+  # it does as much of the real work as it can), explicitly wait for the
+  # two resource types whose finalizers can only be cleared by a
+  # controller that's about to be torn down -- Ingress and
+  # TargetGroupBinding -- to actually be gone, cluster-wide, regardless of
+  # what triggered their deletion. This is the actual invariant that has
+  # to hold (those controllers must still be alive when these objects are
+  # deleted), so checking it directly is more robust than assuming any one
+  # deletion path (Argo CD cascade, namespace GC, ...) reached them in time.
+  echo "-- Deleting the Argo CD root Application, so it starts pruning everything it manages --"
   if kubectl get application aws-bootstrap-root -n argocd >/dev/null 2>&1; then
-    kubectl delete application aws-bootstrap-root -n argocd --timeout=300s || true
+    kubectl delete application aws-bootstrap-root -n argocd --timeout=300s --wait=false || true
   else
     echo "  aws-bootstrap-root not found — already deleted or never created, skipping."
+  fi
+
+  echo "-- Waiting for every Ingress/TargetGroupBinding/ExternalSecret cluster-wide to actually be gone (their controllers must still be running to clear these) --"
+  DEADLINE=$((SECONDS + 900))
+  while [[ $SECONDS -lt $DEADLINE ]]; do
+    ING_COUNT=$(kubectl get ingress -A --no-headers 2>/dev/null | wc -l)
+    TGB_COUNT=$(kubectl get targetgroupbinding -A --no-headers 2>/dev/null | wc -l)
+    ES_COUNT=$(kubectl get externalsecret -A --no-headers 2>/dev/null | wc -l)
+    if [[ "$ING_COUNT" -eq 0 && "$TGB_COUNT" -eq 0 && "$ES_COUNT" -eq 0 ]]; then
+      echo "  All Ingresses/TargetGroupBindings/ExternalSecrets gone."
+      break
+    fi
+    echo "  still remaining: $ING_COUNT ingress(es), $TGB_COUNT targetgroupbinding(s), $ES_COUNT externalsecret(s)... ($((DEADLINE - SECONDS))s left)"
+    sleep 15
+  done
+  REMAINING_ING=$(kubectl get ingress -A --no-headers 2>/dev/null | wc -l)
+  REMAINING_TGB=$(kubectl get targetgroupbinding -A --no-headers 2>/dev/null | wc -l)
+  REMAINING_ES=$(kubectl get externalsecret -A --no-headers 2>/dev/null | wc -l)
+  if [[ "$REMAINING_ING" -gt 0 || "$REMAINING_TGB" -gt 0 || "$REMAINING_ES" -gt 0 ]]; then
+    echo "!! $REMAINING_ING ingress(es), $REMAINING_TGB targetgroupbinding(s), $REMAINING_ES externalsecret(s) still remain after 15 minutes."
+    echo "!! Proceeding to terraform destroy anyway would risk orphaning their ALBs in AWS or hanging on their finalizers again"
+    echo "!! (alb_controller/external_secrets are about to be torn down). Investigate manually before re-running:"
+    echo "!! 'kubectl get ingress -A' / 'kubectl get targetgroupbinding -A' / 'kubectl get externalsecret -A', and check"
+    echo "!! 'aws elbv2 describe-load-balancers' for anything left needing manual 'aws elbv2 delete-load-balancer' cleanup."
+    exit 1
   fi
 else
   echo "Cluster $CLUSTER_NAME not found — skipping node cleanup, still running terraform destroy in case of a partial apply."
