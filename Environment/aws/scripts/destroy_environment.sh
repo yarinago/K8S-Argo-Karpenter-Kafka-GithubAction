@@ -61,6 +61,36 @@ if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$REGION" >/dev/null
     aws ec2 terminate-instances --region "$REGION" --instance-ids $STRAGGLERS
     aws ec2 wait instance-terminated --region "$REGION" --instance-ids $STRAGGLERS
   fi
+  # Argo CD's aws-bootstrap-root Application carries a cascade-delete
+  # finalizer (resources-finalizer.argocd.argoproj.io) specifically so
+  # deleting it prunes everything Argo CD manages -- ExternalSecrets,
+  # Ingresses (and the ALBs/target groups/security groups behind them),
+  # etc. -- via each resource's own controller, while that controller is
+  # still running. That finalizer only fires when something actually
+  # deletes the Application object, though, and nothing in 02-platform's
+  # Terraform graph was forcing that to happen before Terraform's own
+  # destroy started tearing down alb_controller/external_secrets/argocd
+  # themselves -- those helm_releases only depend on alb_controller, not
+  # on argocd_root_app, so Terraform is free to destroy them in parallel
+  # with (or before) Argo CD ever gets a chance to prune. Hit live: an
+  # ExternalSecret in splitwise-dev got a deletionTimestamp but never lost
+  # its externalsecrets.external-secrets.io/externalsecret-cleanup
+  # finalizer, because external-secrets' own controller was already
+  # uninstalled by the time anything asked Argo CD to prune it -- the CRD
+  # deletion (and the whole `terraform destroy` run) hung on it for the
+  # full 5-minute helm uninstall timeout and failed outright. Deleting the
+  # Application here, explicitly, before Terraform touches anything,
+  # makes that ordering deterministic regardless of Terraform's own
+  # parallelism -- and sidesteps the dependency cycle a `depends_on` fix
+  # would hit (argocd_root_app already depends on argocd, which depends on
+  # alb_controller, so alb_controller can't also depend on argocd_root_app
+  # without Terraform rejecting it outright).
+  echo "-- Deleting the Argo CD root Application first, so it cascade-prunes everything it manages before those resources' own controllers get torn down --"
+  if kubectl get application aws-bootstrap-root -n argocd >/dev/null 2>&1; then
+    kubectl delete application aws-bootstrap-root -n argocd --timeout=300s || true
+  else
+    echo "  aws-bootstrap-root not found — already deleted or never created, skipping."
+  fi
 else
   echo "Cluster $CLUSTER_NAME not found — skipping node cleanup, still running terraform destroy in case of a partial apply."
 fi
