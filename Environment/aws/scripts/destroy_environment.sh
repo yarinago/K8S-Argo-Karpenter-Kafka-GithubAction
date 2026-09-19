@@ -48,12 +48,24 @@ if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$REGION" >/dev/null
     sleep 10
   done
 
-  # Fallback: force-terminate anything Karpenter didn't clean up in time, by
-  # its own discovery tag. Never touches the bootstrap managed-node-group
-  # instance — Terraform owns and destroys that itself in the 01-cluster
-  # step below.
+  # Fallback: force-terminate anything Karpenter didn't clean up in time.
+  # `karpenter.sh/discovery` was wrong -- verified live that Karpenter
+  # doesn't actually set that tag on the instances it launches in this
+  # setup, so this filter matched nothing and every straggler silently
+  # slipped through. Hit live: a Karpenter node from an unrelated earlier
+  # operation (an EKS version bump's node churn) sat running, unnoticed,
+  # through two full destroy attempts, then blocked `terraform destroy`
+  # in 01-cluster for 20 minutes on the subnet/security-group deletion
+  # (DependencyViolation -- its ENIs were still attached) once it finally
+  # got there. `karpenter.sh/nodepool` is the tag actually confirmed
+  # present (via `aws ec2 describe-tags`) on every Karpenter-launched
+  # instance regardless of which NodePool -- and, importantly, it is
+  # never set on the EKS-managed bootstrap node group's own instance, so
+  # this still can't accidentally catch the one instance this step must
+  # never touch (Terraform owns and destroys that itself in 01-cluster).
   STRAGGLERS=$(aws ec2 describe-instances --region "$REGION" \
-    --filters "Name=tag:karpenter.sh/discovery,Values=${CLUSTER_NAME}" \
+    --filters "Name=tag-key,Values=karpenter.sh/nodepool" \
+              "Name=tag:kubernetes.io/cluster/${CLUSTER_NAME},Values=owned" \
               "Name=instance-state-name,Values=running,pending,stopping,stopped" \
     --query "Reservations[].Instances[].InstanceId" --output text)
   if [[ -n "$STRAGGLERS" ]]; then
