@@ -48,7 +48,7 @@ Environment/aws/
 
 ![AWS architecture diagram of dev's 01-cluster: VPC across two AZs, EKS cluster, Karpenter/IRSA IAM roles, KMS, Secrets Manager, NAT/Internet Gateway](docs/architecture.png)
 
-Generated straight from `envs/us-east-1/dev/01-cluster`'s actual Terraform code with [TerraVision](https://github.com/patrickchugh/terravision) — not hand-drawn, so it can't drift from what `terraform apply` would actually create. It only covers `01-cluster` (the real AWS resources: VPC, EKS, IAM/IRSA, KMS, Secrets Manager, the Karpenter interruption SQS queue); `02-platform` is almost entirely `helm_release`/`kubectl_manifest` resources — Kubernetes objects, not AWS ones, so a Terraform-parsing tool has nothing to draw there. For what actually runs *inside* the cluster (Karpenter NodePools, the Argo CD app-of-apps tree, Kafka, the monitoring stack, the splitwise app's own data path), see `argocd/apps/dev/`.
+Generated straight from `envs/us-east-1/dev/01-cluster`'s actual Terraform code with [TerraVision](https://github.com/patrickchugh/terravision) — not hand-drawn, so it can't drift from what `terraform apply` would actually create. It only covers `01-cluster` (the real AWS resources: VPC, EKS, IAM/IRSA, KMS, Secrets Manager, the Karpenter interruption SQS queue); `02-platform` is almost entirely `helm_release`/`kubectl_manifest` resources — Kubernetes objects, not AWS ones, so a Terraform-parsing tool has nothing to draw there. For what actually runs *inside* the cluster, see the live map below.
 
 To regenerate after a real infra change:
 
@@ -60,6 +60,35 @@ terravision draw --source . --outfile /tmp/architecture --format png
 # /tmp/architecture-aws.dot.png
 mv /tmp/architecture-aws.dot.png ../../../../docs/architecture.png
 ```
+
+### Live cluster map
+
+![Live EKS cluster resource map: five namespaces (splitwise-dev, infrastructure, argocd, argo-rollouts, external-secrets) showing every Deployment/StatefulSet/DaemonSet/Rollout with live ready-replica counts, the Services and Ingresses in front of them with their real dev.splitwise.click hostnames, and which ConfigMaps/Secrets/PVCs each workload references](docs/eks-live-map.png)
+
+This one isn't from source code — it's the actual live cluster, queried at generation time. [KubeView](https://github.com/benc-uk/kubeview) was deployed into `dev` via its own Helm chart (`ClusterIP` only, no `LoadBalancer` — never exposed outside the cluster) with a read-only `ClusterRole` scoped to `get`/`list`/`watch`. Its backend API returns raw resource lists per namespace, not a rendered image — there's no built-in export — so the graph itself (owner references → workload, label-selector → Service, Ingress backend → Service) was rebuilt from that JSON and rendered with Graphviz. The one thing deliberately left out: `Secret`/`ConfigMap` nodes show names only, never `.data` — KubeView's API returns full secret values over the port-forward, and those never touched anything that ended up in this repo.
+
+`kube-system` (coredns, kube-proxy, the VPC CNI, `ebs-csi`) is excluded — it's generic EKS plumbing, not specific to this project.
+
+Point-in-time, not evergreen — replica counts and which Secrets/ConfigMaps/PVCs actually exist can drift the moment anything in the cluster changes. To regenerate (needs `dot`/Graphviz, Python, and a working `dev` cluster):
+
+```sh
+helm repo add kv2 https://code.benco.io/kubeview/deploy/helm && helm repo update kv2
+helm install kubeview kv2/kubeview -n kubeview --create-namespace \
+  --set loadBalancer.enabled=false --set nodePort.enabled=false
+kubectl port-forward -n kubeview svc/kubeview 8123:8000 &
+
+mkdir -p /tmp/kv-graphs
+for ns in splitwise-dev infrastructure argocd argo-rollouts external-secrets; do
+  curl -s "http://127.0.0.1:8123/api/fetch/$ns?clientID=probe" -o "/tmp/kv-graphs/$ns.json"
+done
+
+python3 scripts/kubeview_render.py /tmp/kv-graphs /tmp/kv-graphs/eks-map.dot
+dot -Tpng /tmp/kv-graphs/eks-map.dot -o docs/eks-live-map.png
+
+helm uninstall kubeview -n kubeview && kubectl delete ns kubeview
+```
+
+`scripts/kubeview_render.py` needs only the Python standard library — no dependency on KubeView's own code, just its JSON output shape.
 
 ## Prerequisites
 
