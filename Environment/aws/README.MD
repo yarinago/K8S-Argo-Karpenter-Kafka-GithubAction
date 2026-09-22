@@ -44,6 +44,23 @@ Environment/aws/
 
 `Environment/resources/splitwise-runtime/base/` (outside this folder) holds the Kafka/producer/loadgen/Kafka-UI manifests shared between local and AWS — local's ingress stays untouched (Traefik + `localtest.me`, no DNS locally); AWS layers its own ALB + `external-dns` ingress on top of the same base.
 
+## Architecture Diagram
+
+![AWS architecture diagram of dev's 01-cluster: VPC across two AZs, EKS cluster, Karpenter/IRSA IAM roles, KMS, Secrets Manager, NAT/Internet Gateway](docs/architecture.png)
+
+Generated straight from `envs/us-east-1/dev/01-cluster`'s actual Terraform code with [TerraVision](https://github.com/patrickchugh/terravision) — not hand-drawn, so it can't drift from what `terraform apply` would actually create. It only covers `01-cluster` (the real AWS resources: VPC, EKS, IAM/IRSA, KMS, Secrets Manager, the Karpenter interruption SQS queue); `02-platform` is almost entirely `helm_release`/`kubectl_manifest` resources — Kubernetes objects, not AWS ones, so a Terraform-parsing tool has nothing to draw there. For what actually runs *inside* the cluster (Karpenter NodePools, the Argo CD app-of-apps tree, Kafka, the monitoring stack, the splitwise app's own data path), see `argocd/apps/dev/`.
+
+To regenerate after a real infra change:
+
+```sh
+pip install terravision   # + graphviz, terraform — see the tool's own README
+cd envs/us-east-1/dev/01-cluster
+terravision draw --source . --outfile /tmp/architecture --format png
+# --outfile is a prefix, not the final name -- it actually writes
+# /tmp/architecture-aws.dot.png
+mv /tmp/architecture-aws.dot.png ../../../../docs/architecture.png
+```
+
 ## Prerequisites
 
 - **An AWS account with a valid payment method attached.** Domain registration is a real purchase, and everything under `envs/` incurs real hourly charges once applied.
