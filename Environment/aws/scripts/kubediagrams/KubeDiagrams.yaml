@@ -1,0 +1,41 @@
+nodes:
+  # Argo Rollouts -- reused verbatim from KubeDiagrams' own
+  # examples/argo/KubeDiagrams.yaml, including its blue-green edges to
+  # the active/preview Services (exactly splitwise-producer's pattern).
+  # icons/Rollout.png is copied unmodified from that same examples/argo/
+  # directory (KubeDiagrams is Apache-2.0, https://github.com/philippemerle/KubeDiagrams).
+  Rollout/argoproj.io/v1alpha1:
+    scope: Namespaced
+    custom_icon: icons/Rollout.png
+    edges: |
+      edges.add_edge_to(
+        "spec.strategy.blueGreen.activeService",
+        ".",
+        edges.namespace,
+        "Service",
+        "v1",
+        "REFERENCE-UP"
+      )
+      edges.add_edge_to(
+        "spec.strategy.blueGreen.previewService",
+        ".",
+        edges.namespace,
+        "Service",
+        "v1",
+        "REFERENCE-UP"
+      )
+  # Strimzi Kafka Operator CRDs -- no official KubeDiagrams config exists
+  # for these yet, so this is a minimal mapping (icon + presence only, no
+  # custom edges) rather than a full one like the Rollout block above.
+  Kafka/kafka.strimzi.io/v1:
+    scope: Namespaced
+    diagram_node_classname: diagrams.onprem.queue.Kafka
+  KafkaNodePool/kafka.strimzi.io/v1:
+    scope: Namespaced
+    diagram_node_classname: diagrams.onprem.queue.Kafka
+  KafkaTopic/kafka.strimzi.io/v1:
+    scope: Namespaced
+    diagram_node_classname: diagrams.onprem.queue.Kafka
+  StrimziPodSet/core.strimzi.io/v1:
+    scope: Namespaced
+    diagram_node_classname: diagrams.onprem.queue.Kafka

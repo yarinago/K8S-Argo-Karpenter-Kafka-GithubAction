@@ -63,32 +63,61 @@ mv /tmp/architecture-aws.dot.png ../../../../docs/architecture.png
 
 ### Live cluster map
 
-![Live EKS cluster resource map: five namespaces (splitwise-dev, infrastructure, argocd, argo-rollouts, external-secrets) showing every Deployment/StatefulSet/DaemonSet/Rollout with live ready-replica counts, the Services and Ingresses in front of them with their real dev.splitwise.click hostnames, and which ConfigMaps/Secrets/PVCs each workload references](docs/eks-live-map.png)
+Not from source code — the actual live cluster, queried at generation time, one diagram per namespace via [KubeDiagrams](https://github.com/philippemerle/KubeDiagrams) (`pip install kubediagrams`; needs Graphviz). Unlike TerraVision above, nothing gets deployed into the cluster for this — it reads whatever `kubectl get ... -o yaml` hands it on stdin and renders directly, no in-cluster component required. `kube-system` (coredns, kube-proxy, the VPC CNI, `ebs-csi`) is excluded — generic EKS plumbing, not specific to this project. `Secret` objects are never fetched at all, not even for structure — only their *names* appear, referenced from whichever ConfigMap/volume points at them, so no secret value is ever piped through a third-party tool.
 
-This one isn't from source code — it's the actual live cluster, queried at generation time. [KubeView](https://github.com/benc-uk/kubeview) was deployed into `dev` via its own Helm chart (`ClusterIP` only, no `LoadBalancer` — never exposed outside the cluster) with a read-only `ClusterRole` scoped to `get`/`list`/`watch`. Its backend API returns raw resource lists per namespace, not a rendered image — there's no built-in export — so the graph itself (owner references → workload, label-selector → Service, Ingress backend → Service) was rebuilt from that JSON and rendered with Graphviz. The one thing deliberately left out: `Secret`/`ConfigMap` nodes show names only, never `.data` — KubeView's API returns full secret values over the port-forward, and those never touched anything that ended up in this repo.
+One combined image across all 5 namespaces technically works but renders as a single 15000px-wide strip (Graphviz lays out unrelated namespace clusters side by side, and there's no direction override this tool exposes) — illegible at any normal size. Splitting per namespace fixed that outright: four of the five need no zooming at all, and even `infrastructure` (the densest namespace by far) is a real, readable diagram rather than a blur.
 
-`kube-system` (coredns, kube-proxy, the VPC CNI, `ebs-csi`) is excluded — it's generic EKS plumbing, not specific to this project.
+<details>
+<summary><code>splitwise-dev</code> — the app, Kafka, Argo Rollouts blue-green</summary>
 
-Point-in-time, not evergreen — replica counts and which Secrets/ConfigMaps/PVCs actually exist can drift the moment anything in the cluster changes. To regenerate (needs `dot`/Graphviz, Python, and a working `dev` cluster):
+![splitwise-dev namespace: Kafka broker pods, topic, splitwise-export Deployment (runtime + producer components), the splitwise-producer and splitwise-loadgen Argo Rollouts with their active/preview Services, Ingresses for dev.splitwise.click and kafka-ui-dev.splitwise.click](docs/eks-live-map/splitwise-dev.png)
+
+</details>
+
+<details>
+<summary><code>infrastructure</code> — Prometheus, Grafana, Alertmanager, Loki, controllers</summary>
+
+![infrastructure namespace: kube-prometheus-stack (prometheus, alertmanager, node-exporter, kube-state-metrics), Loki, Grafana, aws-load-balancer-controller, external-dns, strimzi-cluster-operator, each grouped by Helm release/chart](docs/eks-live-map/infrastructure.png)
+
+</details>
+
+<details>
+<summary><code>argocd</code> — Argo CD's own components</summary>
+
+![argocd namespace: argocd-server, repo-server, application-controller, applicationset-controller, dex-server, notifications-controller, redis, and their ConfigMaps](docs/eks-live-map/argocd.png)
+
+</details>
+
+<details>
+<summary><code>argo-rollouts</code> — the Rollouts controller and dashboard</summary>
+
+![argo-rollouts namespace: argo-rollouts controller and its dashboard Deployment, Service, and Ingress at rollouts-dev.splitwise.click](docs/eks-live-map/argo-rollouts.png)
+
+</details>
+
+<details>
+<summary><code>external-secrets</code> — the ExternalSecrets operator</summary>
+
+![external-secrets namespace: external-secrets, external-secrets-cert-controller, and external-secrets-webhook Deployments and Services](docs/eks-live-map/external-secrets.png)
+
+</details>
+
+Two real bugs surfaced getting these to actually connect, not just render:
+
+- **Most Services showed up disconnected at first.** Traced it into KubeDiagrams' own installed script: for any *live* resource (one with a real `metadata.uid`), it matches a Service's selector against **Pod** labels only — never a Deployment/StatefulSet's `spec.template` labels, even though that's a perfectly valid selector target. `Pod` wasn't in the original fetch (trimmed to cut clutter); adding it back fixed all but two Services cluster-wide — and those two (`splitwise-loadgen`'s active/preview Services) are correctly unmatched, since that Rollout is deliberately scaled to 0 and genuinely has no pods.
+- **Argo Rollouts and Strimzi's CRDs aren't in KubeDiagrams' built-in kind list.** Fixed with `scripts/kubediagrams/KubeDiagrams.yaml` — the `Rollout` mapping (icon + blue-green active/preview Service edges) is copied verbatim from KubeDiagrams' own `examples/argo/` config; the `Kafka`/`KafkaNodePool`/`KafkaTopic`/`StrimziPodSet` mappings are a minimal addition of my own (icon only, no custom edges — no official config exists for Strimzi yet).
+
+Point-in-time, not evergreen — regenerate after anything in the cluster changes:
 
 ```sh
-helm repo add kv2 https://code.benco.io/kubeview/deploy/helm && helm repo update kv2
-helm install kubeview kv2/kubeview -n kubeview --create-namespace \
-  --set loadBalancer.enabled=false --set nodePort.enabled=false
-kubectl port-forward -n kubeview svc/kubeview 8123:8000 &
+KINDS="deployments,statefulsets,daemonsets,pods,services,ingresses,configmaps,persistentvolumeclaims,rollouts.argoproj.io,kafkas.kafka.strimzi.io,kafkanodepools.kafka.strimzi.io,kafkatopics.kafka.strimzi.io,strimzipodsets.core.strimzi.io"
 
-mkdir -p /tmp/kv-graphs
+cd scripts/kubediagrams   # so icons/Rollout.png resolves relative to the config
 for ns in splitwise-dev infrastructure argocd argo-rollouts external-secrets; do
-  curl -s "http://127.0.0.1:8123/api/fetch/$ns?clientID=probe" -o "/tmp/kv-graphs/$ns.json"
+  kubectl get $KINDS -n "$ns" -o yaml \
+    | kube-diagrams -c KubeDiagrams.yaml -o "../../docs/eks-live-map/$ns" -f png -
 done
-
-python3 scripts/kubeview_render.py /tmp/kv-graphs /tmp/kv-graphs/eks-map.dot
-dot -Tpng /tmp/kv-graphs/eks-map.dot -o docs/eks-live-map.png
-
-helm uninstall kubeview -n kubeview && kubectl delete ns kubeview
 ```
-
-`scripts/kubeview_render.py` needs only the Python standard library — no dependency on KubeView's own code, just its JSON output shape.
 
 ## Prerequisites
 
