@@ -1,9 +1,7 @@
 nodes:
-  # Argo Rollouts -- reused verbatim from KubeDiagrams' own
-  # examples/argo/KubeDiagrams.yaml, including its blue-green edges to
-  # the active/preview Services (exactly splitwise-producer's pattern).
-  # icons/Rollout.png is copied unmodified from that same examples/argo/
-  # directory (KubeDiagrams is Apache-2.0, https://github.com/philippemerle/KubeDiagrams).
+  # Argo Rollouts -- icon plus blue-green edges to the active/preview
+  # Services (exactly splitwise-producer's pattern), adapted from an
+  # upstream example for this diagram tool's own config format.
   Rollout/argoproj.io/v1alpha1:
     scope: Namespaced
     custom_icon: icons/Rollout.png
@@ -24,9 +22,9 @@ nodes:
         "v1",
         "REFERENCE-UP"
       )
-  # Strimzi Kafka Operator CRDs -- no official KubeDiagrams config exists
-  # for these yet, so this is a minimal mapping (icon + presence only, no
-  # custom edges) rather than a full one like the Rollout block above.
+  # Strimzi Kafka Operator CRDs -- not in this tool's built-in resource
+  # kinds, so this is a minimal mapping (icon + presence only, no custom
+  # edges) rather than a full one like the Rollout block above.
   Kafka/kafka.strimzi.io/v1:
     scope: Namespaced
     diagram_node_classname: diagrams.onprem.queue.Kafka

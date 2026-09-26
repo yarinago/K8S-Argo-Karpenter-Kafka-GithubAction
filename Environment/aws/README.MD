@@ -48,11 +48,11 @@ Environment/aws/
 
 ![AWS architecture diagram of dev's 01-cluster: VPC across two AZs, EKS cluster, Karpenter/IRSA IAM roles, KMS, Secrets Manager, NAT/Internet Gateway](docs/architecture.png)
 
-Generated from `envs/us-east-1/dev/01-cluster`'s Terraform code with [TerraVision](https://github.com/patrickchugh/terravision), so it stays accurate to what `terraform apply` actually creates. Scope is the AWS layer only: VPC, EKS, IAM/IRSA, KMS, Secrets Manager, the Karpenter interruption SQS queue. `02-platform` (Karpenter, ALB controller, Argo CD, etc.) and everything running inside the cluster are covered separately below, in the live cluster map.
+Reflects `envs/us-east-1/dev/01-cluster`'s Terraform code, kept accurate to what `terraform apply` actually creates. Scope is the AWS layer only: VPC, EKS, IAM/IRSA, KMS, Secrets Manager, the Karpenter interruption SQS queue. `02-platform` (Karpenter, ALB controller, Argo CD, etc.) and everything running inside the cluster are covered separately below, in the live cluster map.
 
 ### Live cluster map
 
-One diagram per namespace, generated directly from the live `dev` cluster with [KubeDiagrams](https://github.com/philippemerle/KubeDiagrams) (`kube-system` excluded — generic EKS plumbing, not specific to this project). Shows every Deployment/StatefulSet/DaemonSet/Rollout, the Services and Ingresses in front of them, and which ConfigMaps/PVCs each one references. `Secret` contents are never read — only names, where referenced.
+One diagram per namespace, reflecting the live `dev` cluster (`kube-system` excluded — generic EKS plumbing, not specific to this project). Shows every Deployment/StatefulSet/DaemonSet/Rollout, the Services and Ingresses in front of them, and which ConfigMaps/PVCs each one references. `Secret` contents are never read — only names, where referenced.
 
 <details>
 <summary><code>splitwise-dev</code> — the app, Kafka, Argo Rollouts blue-green</summary>
@@ -89,7 +89,7 @@ One diagram per namespace, generated directly from the live `dev` cluster with [
 
 </details>
 
-Argo Rollouts and Strimzi's Kafka CRDs are rendered via a custom config, `scripts/kubediagrams/KubeDiagrams.yaml`. Point-in-time, not evergreen — reflects the cluster's state as of generation, not necessarily its current state.
+Point-in-time, not evergreen — reflects the cluster's state as of generation, not necessarily its current state.
 
 ## Prerequisites
 
