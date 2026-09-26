@@ -48,24 +48,11 @@ Environment/aws/
 
 ![AWS architecture diagram of dev's 01-cluster: VPC across two AZs, EKS cluster, Karpenter/IRSA IAM roles, KMS, Secrets Manager, NAT/Internet Gateway](docs/architecture.png)
 
-Generated straight from `envs/us-east-1/dev/01-cluster`'s actual Terraform code with [TerraVision](https://github.com/patrickchugh/terravision) — not hand-drawn, so it can't drift from what `terraform apply` would actually create. It only covers `01-cluster` (the real AWS resources: VPC, EKS, IAM/IRSA, KMS, Secrets Manager, the Karpenter interruption SQS queue); `02-platform` is almost entirely `helm_release`/`kubectl_manifest` resources — Kubernetes objects, not AWS ones, so a Terraform-parsing tool has nothing to draw there. For what actually runs *inside* the cluster, see the live map below.
-
-To regenerate after a real infra change:
-
-```sh
-pip install terravision   # + graphviz, terraform — see the tool's own README
-cd envs/us-east-1/dev/01-cluster
-terravision draw --source . --outfile /tmp/architecture --format png
-# --outfile is a prefix, not the final name -- it actually writes
-# /tmp/architecture-aws.dot.png
-mv /tmp/architecture-aws.dot.png ../../../../docs/architecture.png
-```
+Generated from `envs/us-east-1/dev/01-cluster`'s Terraform code with [TerraVision](https://github.com/patrickchugh/terravision), so it stays accurate to what `terraform apply` actually creates. Scope is the AWS layer only: VPC, EKS, IAM/IRSA, KMS, Secrets Manager, the Karpenter interruption SQS queue. `02-platform` (Karpenter, ALB controller, Argo CD, etc.) and everything running inside the cluster are covered separately below, in the live cluster map.
 
 ### Live cluster map
 
-Not from source code — the actual live cluster, queried at generation time, one diagram per namespace via [KubeDiagrams](https://github.com/philippemerle/KubeDiagrams) (`pip install kubediagrams`; needs Graphviz). Unlike TerraVision above, nothing gets deployed into the cluster for this — it reads whatever `kubectl get ... -o yaml` hands it on stdin and renders directly, no in-cluster component required. `kube-system` (coredns, kube-proxy, the VPC CNI, `ebs-csi`) is excluded — generic EKS plumbing, not specific to this project. `Secret` objects are never fetched at all, not even for structure — only their *names* appear, referenced from whichever ConfigMap/volume points at them, so no secret value is ever piped through a third-party tool.
-
-One combined image across all 5 namespaces technically works but renders as a single 15000px-wide strip (Graphviz lays out unrelated namespace clusters side by side, and there's no direction override this tool exposes) — illegible at any normal size. Splitting per namespace fixed that outright: four of the five need no zooming at all, and even `infrastructure` (the densest namespace by far) is a real, readable diagram rather than a blur.
+One diagram per namespace, generated directly from the live `dev` cluster with [KubeDiagrams](https://github.com/philippemerle/KubeDiagrams) (`kube-system` excluded — generic EKS plumbing, not specific to this project). Shows every Deployment/StatefulSet/DaemonSet/Rollout, the Services and Ingresses in front of them, and which ConfigMaps/PVCs each one references. `Secret` contents are never read — only names, where referenced.
 
 <details>
 <summary><code>splitwise-dev</code> — the app, Kafka, Argo Rollouts blue-green</summary>
@@ -102,22 +89,7 @@ One combined image across all 5 namespaces technically works but renders as a si
 
 </details>
 
-Two real bugs surfaced getting these to actually connect, not just render:
-
-- **Most Services showed up disconnected at first.** Traced it into KubeDiagrams' own installed script: for any *live* resource (one with a real `metadata.uid`), it matches a Service's selector against **Pod** labels only — never a Deployment/StatefulSet's `spec.template` labels, even though that's a perfectly valid selector target. `Pod` wasn't in the original fetch (trimmed to cut clutter); adding it back fixed all but two Services cluster-wide — and those two (`splitwise-loadgen`'s active/preview Services) are correctly unmatched, since that Rollout is deliberately scaled to 0 and genuinely has no pods.
-- **Argo Rollouts and Strimzi's CRDs aren't in KubeDiagrams' built-in kind list.** Fixed with `scripts/kubediagrams/KubeDiagrams.yaml` — the `Rollout` mapping (icon + blue-green active/preview Service edges) is copied verbatim from KubeDiagrams' own `examples/argo/` config; the `Kafka`/`KafkaNodePool`/`KafkaTopic`/`StrimziPodSet` mappings are a minimal addition of my own (icon only, no custom edges — no official config exists for Strimzi yet).
-
-Point-in-time, not evergreen — regenerate after anything in the cluster changes:
-
-```sh
-KINDS="deployments,statefulsets,daemonsets,pods,services,ingresses,configmaps,persistentvolumeclaims,rollouts.argoproj.io,kafkas.kafka.strimzi.io,kafkanodepools.kafka.strimzi.io,kafkatopics.kafka.strimzi.io,strimzipodsets.core.strimzi.io"
-
-cd scripts/kubediagrams   # so icons/Rollout.png resolves relative to the config
-for ns in splitwise-dev infrastructure argocd argo-rollouts external-secrets; do
-  kubectl get $KINDS -n "$ns" -o yaml \
-    | kube-diagrams -c KubeDiagrams.yaml -o "../../docs/eks-live-map/$ns" -f png -
-done
-```
+Argo Rollouts and Strimzi's Kafka CRDs are rendered via a custom config, `scripts/kubediagrams/KubeDiagrams.yaml`. Point-in-time, not evergreen — reflects the cluster's state as of generation, not necessarily its current state.
 
 ## Prerequisites
 
