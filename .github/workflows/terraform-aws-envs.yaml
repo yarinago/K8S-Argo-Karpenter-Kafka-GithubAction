@@ -48,7 +48,7 @@ concurrency:
 
 env:
   AWS_REGION: us-east-1
-  TF_VERSION: "1.9.0"
+  TF_VERSION: "1.16.0"
 
 jobs:
   prepare:
@@ -108,23 +108,123 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # Reads the app repo's own SOPS-encrypted secret directly — the same
+      # source of truth the app itself decrypts locally via KSOPS — instead
+      # of a value someone has to keep re-pasting into a GitHub secret by
+      # hand. Public repo, so no token needed to check it out. Decryption
+      # needs the SOPS_AGE_KEY secret on this environment (the private half
+      # of the same age keypair already used for the local cluster and the
+      # app repo's own overlays) — without it, this quietly falls back to
+      # {} (the variable's own default) rather than failing the whole run,
+      # so environments that haven't set this up yet still apply cleanly
+      # with an empty secret container.
+      - name: Checkout app repo (public, read-only, for its encrypted config)
+        if: inputs.action != 'destroy'
+        uses: actions/checkout@v4
+        with:
+          repository: yarinago/splitwise-household-expenses
+          path: app-repo
+
+      - name: Decrypt Splitwise config from the app repo
+        id: app_config
+        if: inputs.action != 'destroy'
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          set -euo pipefail
+          # Two separately SOPS-encrypted files, each with its own keys:
+          # the non-secret config values (group ID, member names, display
+          # settings) live in a plain ConfigMap that's still fully
+          # encrypted at rest (its own sops: block, decryptable the same
+          # way as the Secret), and the real credentials live in the
+          # per-environment Secret. splitwise_app_config needs both merged
+          # into one map.
+          CONFIGMAP_FILE="app-repo/k8s/base/configmap.yaml"
+          SECRET_FILE="app-repo/k8s/overlays/${{ matrix.env }}/secret.enc.yaml"
+          if [ -z "${SOPS_AGE_KEY:-}" ] || [ ! -f "$CONFIGMAP_FILE" ] || [ ! -f "$SECRET_FILE" ]; then
+            echo "::notice::Skipping Splitwise config decrypt — SOPS_AGE_KEY isn't set on this environment, or one of $CONFIGMAP_FILE / $SECRET_FILE doesn't exist. splitwise_app_config will default to {}."
+            echo "value={}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          curl -sLo /usr/local/bin/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          sudo chmod +x /usr/local/bin/sops
+          # PyYAML ships preinstalled on GitHub's ubuntu-latest runners
+          # (and confirmed present in this same distro locally) — no pip
+          # install needed, which is good, since newer pip refuses a
+          # system-wide install here anyway (PEP 668 "externally-managed-
+          # environment").
+
+          cat > /tmp/extract_field.py <<'PYEOF'
+          import sys, yaml, json, base64
+          doc = yaml.safe_load(sys.stdin)
+          # ConfigMap.data is always plain text. Secret.data is base64;
+          # Secret.stringData (what both real files here actually use) is
+          # plain text. Branch on kind rather than guessing from shape.
+          if "stringData" in doc:
+              data = doc["stringData"] or {}
+          elif doc.get("kind") == "Secret" and "data" in doc:
+              data = {k: base64.b64decode(v).decode() for k, v in (doc["data"] or {}).items()}
+          else:
+              data = doc.get("data") or {}
+          print(json.dumps({k: str(v) for k, v in data.items()}))
+          PYEOF
+
+          CONFIG_JSON=$(sops -d "$CONFIGMAP_FILE" | python3 /tmp/extract_field.py)
+          SECRET_JSON=$(sops -d "$SECRET_FILE" | python3 /tmp/extract_field.py)
+          VALUE=$(python3 -c "import json,sys; a=json.loads(sys.argv[1]); b=json.loads(sys.argv[2]); a.update(b); print(json.dumps(a))" "$CONFIG_JSON" "$SECRET_JSON")
+          {
+            echo "value<<__EOF__"
+            echo "$VALUE"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Plan 01-cluster
         if: inputs.action == 'plan'
         working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/01-cluster
+        env:
+          TF_VAR_splitwise_app_config: ${{ steps.app_config.outputs.value }}
         run: |
           terraform init -input=false
-          terraform plan -input=false
+          {
+            echo "## ${{ matrix.env }} / 01-cluster plan"
+            echo '```diff'
+            terraform plan -input=false -no-color
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Detect whether 01-cluster has been applied yet
+        id: cluster_state
+        if: inputs.action == 'plan'
+        run: |
+          if aws s3api head-object --bucket splitwise-tfstate-398915901412 \
+            --key "envs/${{ env.AWS_REGION }}/${{ matrix.env }}/01-cluster/terraform.tfstate" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Plan 02-platform
-        if: inputs.action == 'plan'
+        if: inputs.action == 'plan' && steps.cluster_state.outputs.exists == 'true'
         working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/02-platform
         run: |
           terraform init -input=false
-          terraform plan -input=false
+          {
+            echo "## ${{ matrix.env }} / 02-platform plan"
+            echo '```diff'
+            terraform plan -input=false -no-color
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Plan 02-platform skipped (01-cluster not applied yet)
+        if: inputs.action == 'plan' && steps.cluster_state.outputs.exists == 'false'
+        run: echo "::notice::Skipping 02-platform plan — 01-cluster has never been applied, so there's no live cluster/state for its Kubernetes/Helm providers to read. Run action=apply first (it applies 01-cluster then 02-platform in the right order), then plan will work normally."
 
       - name: Apply 01-cluster
         if: inputs.action == 'apply'
         working-directory: Environment/aws/envs/${{ env.AWS_REGION }}/${{ matrix.env }}/01-cluster
+        env:
+          TF_VAR_splitwise_app_config: ${{ steps.app_config.outputs.value }}
         run: |
           terraform init -input=false
           terraform apply -input=false -auto-approve

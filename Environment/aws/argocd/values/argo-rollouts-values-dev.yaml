@@ -1,0 +1,37 @@
+# The controller itself is lightweight — it just watches Rollout objects and
+# reconciles ReplicaSets/Services, no chart rendering or heavy state.
+controller:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Web UI for watching/promoting/aborting in-flight Rollouts — the primary
+# way to interact with the Splitwise producer/loadgen blue-green rollouts
+# without needing the kubectl argo rollouts CLI plugin installed.
+dashboard:
+  enabled: true
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      external-dns.alpha.kubernetes.io/hostname: rollouts-dev.splitwise.click
+    hosts:
+      - rollouts-dev.splitwise.click
+    paths:
+      - /
+    pathType: Prefix
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

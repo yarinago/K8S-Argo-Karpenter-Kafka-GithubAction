@@ -22,10 +22,11 @@ spec:
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
       targetRevision: main
       ref: values
-    # PrometheusRule/ServiceMonitor resources owned by Prometheus.
+    # PrometheusRule/ServiceMonitor resources owned by Prometheus — shared
+    # with AWS's own prometheus Application, see that directory's README.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
       targetRevision: main
-      path: Environment/local/argocd/apps/monitoring/prometheus-extra
+      path: Environment/resources/monitoring/prometheus-extra
   destination:
     server: https://kubernetes.default.svc
     namespace: infrastructure

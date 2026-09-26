@@ -1,0 +1,87 @@
+# Argo Rollouts Rollout, not a plain Deployment — required to get blue-green
+# semantics. See Local-Argo-Rollouts / Local-Splitwise-Runtime-App on the wiki.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: splitwise-producer
+spec:
+  replicas: 1
+  # Overridden higher in prod for rollback depth; dev keeps this default
+  # since it's disposable and fast-moving.
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: splitwise-export
+      app.kubernetes.io/component: producer
+  strategy:
+    blueGreen:
+      activeService: splitwise-producer-active
+      previewService: splitwise-producer-preview
+      # Every new version stops as an unpromoted "preview" until manually
+      # promoted (dashboard or `kubectl argo rollouts promote`). The old
+      # version keeps serving "active" traffic untouched the whole time.
+      autoPromotionEnabled: false
+      previewReplicaCount: 1
+      # How long the old ReplicaSet is kept running (in case of an
+      # immediate abort/rollback) after a promote before it's scaled down.
+      scaleDownDelaySeconds: 30
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: splitwise-export
+        app.kubernetes.io/part-of: splitwise-household-expenses
+        app.kubernetes.io/component: producer
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: producer
+          image: ghcr.io/yarinago/splitwise-household-expenses
+          imagePullPolicy: Always
+          ports:
+            - name: metrics
+              containerPort: 9090
+          env:
+            - name: APP_MODE
+              value: producer
+            - name: METRICS_PORT
+              value: "9090"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: splitwise-kafka-kafka-bootstrap:9092
+            - name: KAFKA_TOPIC
+              value: splitwise.expenses.v1
+            - name: SPLITWISE_LOAD_DOTENV
+              value: "0"
+          envFrom:
+            # splitwise-export-config/-secrets are owned by the app repo's
+            # own overlay, not this repo — this Rollout just references them.
+            - configMapRef:
+                name: splitwise-export-config
+            - secretRef:
+                name: splitwise-export-secrets
+          volumeMounts:
+            # readOnlyRootFilesystem below means anything the process writes
+            # has to go here instead of the container's own filesystem.
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

@@ -1,0 +1,90 @@
+# deployment.yaml/service.yaml/pvc.yaml are pulled straight from the app
+# repo's k8s/base by raw GitHub URL, not a local path across repos —
+# Kustomize's default security sandbox blocks referencing individual
+# files outside this directory's own tree (verified live: the local-path
+# version of this failed with "file is not in or below" the build root),
+# but a remote URL isn't a local path at all, so it isn't subject to that
+# restriction. This also means base/'s own kustomization.yaml (and its
+# KSOPS generator for the encrypted configmap.yaml, which this cluster
+# has no ksops installed to run) is never invoked — only these three
+# plain, self-contained files are ever touched.
+#
+# service-monitor.yaml is now included — the monitoring stack
+# (../../monitoring/) exists, with prometheus-operator's CRDs landing at
+# sync-wave -1, before this Application's default wave 0, so the CRD is
+# guaranteed to exist by the time this ServiceMonitor applies. Its
+# `release: monitoring` label doesn't need to match anything — Prometheus
+# here uses an empty (match-everything) serviceMonitorSelector, same
+# reasoning as prometheus-extra's ServiceMonitors using a different label
+# entirely.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: splitwise-dev
+
+resources:
+  - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/deployment.yaml
+  - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/service.yaml
+  - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/pvc.yaml
+  - https://raw.githubusercontent.com/yarinago/splitwise-household-expenses/main/k8s/base/service-monitor.yaml
+  - configmap.yaml
+  - external-secret.yaml
+  - ingress.yaml
+
+# Patch, not an app-repo change: both containers already run as
+# runAsUser/runAsGroup 10001 (per-container securityContext, in the
+# Deployment as pulled from the app repo unmodified), but a freshly
+# provisioned EBS/gp3 volume is root-owned by default — without a
+# pod-level fsGroup too, the non-root containers can't write to it at all
+# ("sqlite3.OperationalError: unable to open database file"), hit live.
+# local's k3d storage provisioner doesn't have this restriction, which is
+# why this never surfaced there.
+patches:
+  - target:
+      kind: Deployment
+      name: splitwise-export
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: splitwise-export
+      spec:
+        template:
+          spec:
+            securityContext:
+              fsGroup: 10001
+
+  # Patch, not an app-repo change: the app's own /readyz (what the
+  # Deployment's readinessProbe hits) reports "not_ready" whenever it has
+  # no materialized dataset yet -- correct for its own purpose (telling the
+  # UI "still warming up"), but wrong as a Kubernetes readiness gate, since
+  # it keeps the pod out of the ALB target group (0 targets registered, a
+  # permanent 503 from outside) for as long as there's no data, even though
+  # the process itself is completely healthy and already serving 200s on
+  # every other route. Hit live: real Splitwise API access now requires a
+  # paid Pro subscription this account doesn't have (confirmed via the
+  # producer's own logs -- SplitwiseNotAllowedException, 403, "developer
+  # doesn't have an active Splitwise Pro subscription"), so no dataset will
+  # ever materialize here, and /readyz would 503 forever. The app also
+  # exposes /healthz, an unconditional liveness check with no such
+  # dependency -- pointing the K8s readinessProbe at that instead is the
+  # correct fix: it lets the pod (and therefore the real error, visible in
+  # the UI/API) actually reach real traffic, rather than gating traffic on
+  # a business-data condition Kubernetes has no business gating on.
+  - target:
+      kind: Deployment
+      name: splitwise-export
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: splitwise-export
+      spec:
+        template:
+          spec:
+            containers:
+              - name: web
+                readinessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: http

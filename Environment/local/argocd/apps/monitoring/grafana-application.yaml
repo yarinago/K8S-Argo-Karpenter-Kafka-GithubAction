@@ -25,10 +25,11 @@ spec:
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
       targetRevision: main
       ref: values
-    # Grafana dashboard/datasource ConfigMaps discovered via the sidecar.
+    # Grafana dashboard/datasource ConfigMaps discovered via the sidecar —
+    # shared with AWS's own grafana Application.
     - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
       targetRevision: main
-      path: Environment/local/argocd/apps/monitoring/grafana-extra
+      path: Environment/resources/monitoring/grafana-extra
   destination:
     server: https://kubernetes.default.svc
     namespace: infrastructure

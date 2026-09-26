@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars (already gitignored) and fill in real values.
+# Never commit the real file — this .example stays placeholder-only.
+splitwise_app_config = {
+  SPLITWISE_GROUP_ID               = "REPLACE_ME"
+  SPLITWISE_MEMBERS                = "REPLACE_ME"
+  SPLITWISE_FIRST_MONTH            = "REPLACE_ME"
+  SPLITWISE_EXCLUDE_MONTHS         = "REPLACE_ME"
+  SPLITWISE_EXCLUDE_DESCRIPTIONS   = "REPLACE_ME"
+  SPLITWISE_REFRESH_SECONDS        = "REPLACE_ME"
+  SPLITWISE_DEBT_DIRECTION         = "REPLACE_ME"
+  SPLITWISE_PERSON_OWES_DIRECTION  = "REPLACE_ME"
+  SPLITWISE_RECENT_EXPENSES_LIMIT  = "REPLACE_ME"
+  SPLITWISE_TABLE_LIMIT            = "REPLACE_ME"
+  SPLITWISE_CLIENT_ID              = "REPLACE_ME"
+  SPLITWISE_CLIENT_SECRET          = "REPLACE_ME"
+  SPLITWISE_ACCESS_TOKEN_JSON      = "REPLACE_ME"
+}

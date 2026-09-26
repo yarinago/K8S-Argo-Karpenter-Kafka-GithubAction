@@ -1,0 +1,25 @@
+# Same AppProject as local's — Prometheus Operator, Prometheus,
+# Alertmanager, Grafana, Loki, one scoped project per environment's
+# cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  description: Argo CD project for the AWS dev observability stack
+  sourceRepos:
+    - https://prometheus-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
+    - https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: infrastructure
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

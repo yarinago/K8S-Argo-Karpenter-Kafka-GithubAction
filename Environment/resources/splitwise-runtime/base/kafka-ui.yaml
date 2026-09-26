@@ -1,0 +1,81 @@
+# Debugging/browsing UI for Kafka (topics, consumer groups, messages). Plain
+# Deployment, not a Rollout — this is a dev tool, not something that needs
+# blue-green promotion. Exposed via environment-specific ingress
+# (../dev/kafka-ui-ingress.yaml, ../prod/kafka-ui-ingress.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka-ui
+        app.kubernetes.io/part-of: splitwise-household-expenses
+        app.kubernetes.io/component: tooling
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kafka-ui
+          # https://github.com/kafbat/kafka-ui — community fork of the
+          # original provectus/kafka-ui, which stopped receiving updates.
+          image: ghcr.io/kafbat/kafka-ui:v1.5.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: splitwise-kafka
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: splitwise-kafka-kafka-bootstrap:9092
+            - name: DYNAMIC_CONFIG_ENABLED
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-ui
+spec:
+  selector:
+    app.kubernetes.io/name: kafka-ui
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

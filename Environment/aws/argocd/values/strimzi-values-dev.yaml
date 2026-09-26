@@ -1,0 +1,16 @@
+# AWS dev Strimzi operator configuration. Unlike local (one cluster, two
+# namespaces, watchNamespaces lists both), this cluster only ever hosts
+# the dev environment — separate clusters per environment, so there's
+# only ever one namespace to watch here.
+watchNamespaces:
+  - splitwise-dev
+
+# Same probe timing fix as local's values — the operator's own startup is
+# slower than the chart's tighter default tolerates.
+livenessProbe:
+  initialDelaySeconds: 60
+  timeoutSeconds: 10
+
+readinessProbe:
+  initialDelaySeconds: 60
+  timeoutSeconds: 10

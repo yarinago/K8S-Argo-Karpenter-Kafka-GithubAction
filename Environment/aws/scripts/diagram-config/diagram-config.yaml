@@ -1,0 +1,39 @@
+nodes:
+  # Argo Rollouts -- icon plus blue-green edges to the active/preview
+  # Services (exactly splitwise-producer's pattern), adapted from an
+  # upstream example for this diagram tool's own config format.
+  Rollout/argoproj.io/v1alpha1:
+    scope: Namespaced
+    custom_icon: icons/Rollout.png
+    edges: |
+      edges.add_edge_to(
+        "spec.strategy.blueGreen.activeService",
+        ".",
+        edges.namespace,
+        "Service",
+        "v1",
+        "REFERENCE-UP"
+      )
+      edges.add_edge_to(
+        "spec.strategy.blueGreen.previewService",
+        ".",
+        edges.namespace,
+        "Service",
+        "v1",
+        "REFERENCE-UP"
+      )
+  # Strimzi Kafka Operator CRDs -- not in this tool's built-in resource
+  # kinds, so this is a minimal mapping (icon + presence only, no custom
+  # edges) rather than a full one like the Rollout block above.
+  Kafka/kafka.strimzi.io/v1:
+    scope: Namespaced
+    diagram_node_classname: diagrams.onprem.queue.Kafka
+  KafkaNodePool/kafka.strimzi.io/v1:
+    scope: Namespaced
+    diagram_node_classname: diagrams.onprem.queue.Kafka
+  KafkaTopic/kafka.strimzi.io/v1:
+    scope: Namespaced
+    diagram_node_classname: diagrams.onprem.queue.Kafka
+  StrimziPodSet/core.strimzi.io/v1:
+    scope: Namespaced
+    diagram_node_classname: diagrams.onprem.queue.Kafka

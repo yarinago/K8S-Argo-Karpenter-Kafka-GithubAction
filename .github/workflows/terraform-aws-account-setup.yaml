@@ -1,8 +1,20 @@
 name: Terraform (AWS account setup — global/github-oidc, global/dns)
 
-# Drives global/github-oidc and global/dns — the account-level resources
-# that CAN be managed through CI, because by the time this workflow ever
-# runs, the OIDC role it authenticates with already exists.
+# Drives global/github-oidc (plan/apply only) and global/dns (plan/apply/
+# destroy) — the account-level resources that CAN be managed through CI,
+# because by the time this workflow ever runs, the OIDC role it
+# authenticates with already exists.
+#
+# github-oidc's `destroy` step was deliberately removed (2026-09-18) after
+# hitting this live: the role can delete itself as its very last authorized
+# action (its own temporary STS credentials stay valid after DeleteRole
+# until they expire), so a destroy run here would succeed right up until
+# every OIDC-authenticated workflow in the repo -- including this one --
+# permanently loses the ability to authenticate to AWS at all. Recovering
+# from that requires the exact same by-hand local bootstrap as a brand-new
+# account (see Environment/aws/README.md's "Account bootstrap" section).
+# github-oidc now follows the same rule as backend-bootstrap: destroying it
+# is a deliberate, local, by-hand `terraform destroy`, never a CI button.
 #
 # global/backend-bootstrap is NOT here, and never will be: it creates the
 # S3 bucket every root's state lives in, and github-oidc's first apply
@@ -11,9 +23,9 @@ name: Terraform (AWS account setup — global/github-oidc, global/dns)
 # against yet on a brand-new account, so both are a required, one-time,
 # by-hand step — see Environment/aws/README.md's "Account bootstrap"
 # section for the exact commands. Once that's done, github-oidc's role can
-# manage itself (updating its own trust policy/attachments) and dns
-# entirely through this workflow, same as every other Terraform-AWS
-# workflow in this repo.
+# manage itself (updating its own trust policy/attachments) entirely
+# through this workflow, same as every other Terraform-AWS workflow in
+# this repo -- just never destroy itself through it.
 #
 # Manual dispatch only — this is still account-level (the OIDC trust
 # relationship every CI workflow depends on, plus the Route53 hosted
@@ -24,13 +36,13 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Terraform action to run against global/github-oidc and global/dns"
+        description: "Terraform action against global/github-oidc (plan/apply only) and global/dns (plan/apply/destroy)"
         type: choice
         options: [plan, apply, destroy]
         default: plan
         required: true
       confirm_destroy_phrase:
-        description: 'DESTROY ONLY: type exactly "destroy global account setup" to proceed. Anything else (including leaving this blank) aborts before touching AWS.'
+        description: 'DESTROY ONLY: type exactly "destroy global account setup" to proceed. Only destroys global/dns -- github-oidc is never destroyed by this workflow (see the file header). Anything else (including leaving this blank) aborts before touching AWS.'
         type: string
         default: ""
 
@@ -44,13 +56,13 @@ concurrency:
 
 env:
   AWS_REGION: us-east-1
-  TF_VERSION: "1.9.0"
+  TF_VERSION: "1.16.0"
 
 jobs:
   account-setup:
     name: global/ (${{ inputs.action }})
     runs-on: ubuntu-latest
-    environment: aws-account-setup   # required reviewers belong here — this job can delete the GitHub OIDC trust relationship and the hosted zone/cert
+    environment: aws-account-setup   # required reviewers belong here — this job can delete the hosted zone/cert (github-oidc's own destroy is intentionally not wired up here at all, see file header)
     permissions:
       id-token: write
       contents: read
@@ -77,7 +89,12 @@ jobs:
         working-directory: Environment/aws/global/github-oidc
         run: |
           terraform init -input=false
-          terraform plan -input=false
+          {
+            echo "## github-oidc plan"
+            echo '```diff'
+            terraform plan -input=false -no-color
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: "github-oidc: apply"
         if: inputs.action == 'apply'
@@ -91,7 +108,12 @@ jobs:
         working-directory: Environment/aws/global/dns
         run: |
           terraform init -input=false
-          terraform plan -input=false
+          {
+            echo "## dns plan"
+            echo '```diff'
+            terraform plan -input=false -no-color
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: "dns: apply"
         if: inputs.action == 'apply'
@@ -100,19 +122,11 @@ jobs:
           terraform init -input=false
           terraform apply -input=false -auto-approve
 
-      # Destroy order: dns first, github-oidc last — once github-oidc's
-      # role is gone, this job (and every other workflow) loses the
-      # ability to authenticate at all, so nothing can run after it.
+      # github-oidc has no destroy step here, deliberately — see the file
+      # header. Only dns is ever destroyed through this workflow.
       - name: "dns: destroy"
         if: inputs.action == 'destroy'
         working-directory: Environment/aws/global/dns
-        run: |
-          terraform init -input=false
-          terraform destroy -input=false -auto-approve
-
-      - name: "github-oidc: destroy"
-        if: inputs.action == 'destroy'
-        working-directory: Environment/aws/global/github-oidc
         run: |
           terraform init -input=false
           terraform destroy -input=false -auto-approve

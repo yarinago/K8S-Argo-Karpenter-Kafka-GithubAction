@@ -1,0 +1,62 @@
+# Standalone grafana/grafana chart, not kube-prometheus-stack — same
+# reasoning as local's (see that Application's own header comment).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  # Without this, deleting the app-of-apps root only removes this
+  # Application object itself -- it does NOT cascade to what this
+  # Application deployed (the grafana Deployment/Service/Ingress/ALB).
+  # Confirmed live via EKS audit logs: the root's own cascade deleted all
+  # 9 child Applications in under a second, but zero delete events ever
+  # followed for the resources they owned -- because deleting a child
+  # Application as part of the root's prune sweep is a plain Kubernetes
+  # DELETE, not "delete with cascade", unless the child carries this
+  # finalizer itself. No amount of waiting in destroy_environment.sh was
+  # ever going to fix that; see the wait-loop's own comment there.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: monitoring
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: grafana
+      targetRevision: 10.5.15
+      helm:
+        releaseName: grafana
+        valueFiles:
+          - $values/Environment/aws/argocd/values/grafana-values-dev.yaml
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: develop
+      ref: values
+    # Shared with local — same dashboard ConfigMaps either way.
+    - repoURL: https://github.com/yarinago/K8S-Argo-Karpenter-Kafka-GithubAction.git
+      targetRevision: develop
+      path: Environment/resources/monitoring/grafana-extra
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infrastructure
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: grafana
+      namespace: infrastructure
+      jsonPointers:
+        - /data
+    - group: apps
+      kind: Deployment
+      name: grafana
+      namespace: infrastructure
+      jsonPointers:
+        - /spec/template/metadata/annotations/checksum~1secret

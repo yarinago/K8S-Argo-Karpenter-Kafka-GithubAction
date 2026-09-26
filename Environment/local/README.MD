@@ -44,8 +44,23 @@ Environment/local/
 
 ## Prerequisites
 
-- Linux terminal
+- A real Linux shell — native Linux, macOS, or **WSL2 on Windows**. Do not run this script from Git Bash/MSYS on Windows: `install_dependencies()` downloads Linux binaries and will silently overwrite whatever's on your Windows PATH with a binary that can't execute there (`helm`, specifically, has broken this way in practice). On Windows, run it from inside a real WSL2 distro, e.g.:
+  ```sh
+  wsl -d Ubuntu -- bash -lc "cd /mnt/c/path/to/this/repo && bash Environment/local/cluster_creation.sh"
+  ```
 - `sudo` permissions (for dependency installs)
+- Docker (Docker Desktop on Windows/macOS, with the WSL2 backend enabled on Windows)
+- **Resources** — measured, not estimated: this stack (3 k3d nodes, Argo CD, a 3-broker Kafka cluster, the full Prometheus/Alertmanager/Grafana/Loki stack, and the Splitwise dev+prod workloads) uses **~10.7GB of memory at steady state** once fully synced.
+  - **Memory**: at least 12GB allocated to Docker's VM. 16GB total host RAM is the practical minimum — below that, expect the host OS itself to come under pressure alongside the cluster.
+  - **CPU**: 4+ cores recommended.
+  - **Disk**: 20GB+ free for pulled images and growing PVC/datastore volumes.
+  - **On Windows**, set this in `%USERPROFILE%\.wslconfig`, then `wsl --shutdown` and restart Docker Desktop:
+    ```ini
+    [wsl2]
+    memory=13GB
+    processors=4
+    swap=2GB
+    ```
 
 ## Run
 
