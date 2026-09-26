@@ -244,9 +244,9 @@ To also tear down `dns`: `terraform-aws-account-setup.yaml`, `action=destroy` (a
 ```sh
 aws eks update-kubeconfig --name splitwise-dev --region us-east-1   # or splitwise-prod
 
-kubectl get nodes -L karpenter.sh/nodepool          # bootstrap node group + any Karpenter-provisioned nodes
-kubectl get nodepool,ec2nodeclass                   # both capacity profiles
-kubectl -n argocd get applications                  # what Argo CD has synced
-kubectl -n external-secrets get clustersecretstore  # should be Ready
+kubectl get nodes -L karpenter.sh/nodepool                              # bootstrap node group + any Karpenter-provisioned nodes
+kubectl get nodepool,ec2nodeclass                                       # both capacity profiles
+kubectl -n argocd get applications                                      # what Argo CD has synced
+kubectl -n external-secrets get clustersecretstore                      # should be Ready
 kubectl get secret -A -l app.kubernetes.io/managed-by=external-secrets
 ```
