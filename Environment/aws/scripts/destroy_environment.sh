@@ -117,6 +117,26 @@ if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$REGION" >/dev/null
   # to hold (those controllers must still be alive when these objects are
   # deleted), so checking it directly is more robust than assuming any one
   # deletion path (Argo CD cascade, namespace GC, ...) reached them in time.
+  # Update, found via the EKS audit log after the wait-loop below kept
+  # timing out at a flat, never-decreasing 7 ingress/7 targetgroupbinding/
+  # 1 externalsecret no matter how long it waited: the wait-loop was never
+  # the fix for the actual bug, just a safety net that correctly stopped
+  # this script from doing damage while the real cause went unfixed. Root
+  # cause: aws-bootstrap-root carries resources-finalizer.argocd.argoproj.io
+  # (set by kubectl_manifest.argocd_root_app in Terraform), but its 9 CHILD
+  # Applications (argocd/apps/dev/**/*-application.yaml) never had that
+  # finalizer on themselves. Deleting the root only cascades to its own
+  # direct resources -- which, in an app-of-apps, ARE the child Application
+  # objects, not what those children deploy. Confirmed live: the root's
+  # cascade deleted all 9 children within 600ms (too fast for a real
+  # cascade through Ingresses/Deployments/etc.), and zero delete events
+  # ever followed for anything the children owned. No amount of waiting
+  # here was ever going to reach 0, regardless of timeout length -- fixed
+  # at the source instead, by adding the finalizer to every child
+  # Application manifest. This wait-loop stays as defense in depth (it's
+  # still the right thing to verify before letting Terraform touch
+  # alb_controller/external_secrets), but it should now normally resolve
+  # in well under a minute instead of timing out.
   echo "-- Deleting the Argo CD root Application, so it starts pruning everything it manages --"
   if kubectl get application aws-bootstrap-root -n argocd >/dev/null 2>&1; then
     kubectl delete application aws-bootstrap-root -n argocd --timeout=300s --wait=false || true

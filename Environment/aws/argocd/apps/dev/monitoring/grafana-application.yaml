@@ -5,6 +5,18 @@ kind: Application
 metadata:
   name: grafana
   namespace: argocd
+  # Without this, deleting the app-of-apps root only removes this
+  # Application object itself -- it does NOT cascade to what this
+  # Application deployed (the grafana Deployment/Service/Ingress/ALB).
+  # Confirmed live via EKS audit logs: the root's own cascade deleted all
+  # 9 child Applications in under a second, but zero delete events ever
+  # followed for the resources they owned -- because deleting a child
+  # Application as part of the root's prune sweep is a plain Kubernetes
+  # DELETE, not "delete with cascade", unless the child carries this
+  # finalizer itself. No amount of waiting in destroy_environment.sh was
+  # ever going to fix that; see the wait-loop's own comment there.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:

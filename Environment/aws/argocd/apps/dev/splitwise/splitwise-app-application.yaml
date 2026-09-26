@@ -9,6 +9,10 @@ kind: Application
 metadata:
   name: splitwise-app
   namespace: argocd
+  # See ../monitoring/grafana-application.yaml's identical block for why
+  # every child Application needs this, not just the app-of-apps root.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:

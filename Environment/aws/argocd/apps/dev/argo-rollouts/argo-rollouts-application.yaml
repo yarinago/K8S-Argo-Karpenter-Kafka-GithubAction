@@ -12,6 +12,10 @@ kind: Application
 metadata:
   name: argo-rollouts
   namespace: argocd
+  # See monitoring/grafana-application.yaml's identical block for why
+  # every child Application needs this, not just the app-of-apps root.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
   annotations:
     # Early wave: Rollout custom resources (created by splitwise-runtime,
     # sync-wave unset/0 by default) need this controller's CRDs to exist
