@@ -46,7 +46,7 @@ Environment/aws/
 
 ## Architecture Diagram
 
-![AWS architecture diagram of dev's 01-cluster: VPC across two AZs, EKS cluster, Karpenter/IRSA IAM roles, KMS, Secrets Manager, NAT/Internet Gateway](docs/architecture.png)
+![AWS architecture diagram of dev's 01-cluster: Internet through the Internet Gateway and NAT Gateway to the EKS cluster and its node group, the Karpenter interruption SQS queue, and the KMS/Secrets Manager/ECR/CloudWatch resources alongside it](docs/architecture.png)
 
 Reflects `envs/us-east-1/dev/01-cluster`'s Terraform code, kept accurate to what `terraform apply` actually creates. Scope is the AWS layer only: VPC, EKS, IAM/IRSA, KMS, Secrets Manager, the Karpenter interruption SQS queue. `02-platform` (Karpenter, ALB controller, Argo CD, etc.) and everything running inside the cluster are covered separately below, in the live cluster map.
 
