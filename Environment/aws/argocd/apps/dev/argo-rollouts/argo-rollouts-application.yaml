@@ -44,3 +44,14 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      # rollouts.argoproj.io alone renders to ~586KB — well past kubectl
+      # apply's 262144-byte cap on the last-applied-configuration annotation
+      # client-side apply relies on for diffing. That annotation silently
+      # gets truncated, so every diff sees drift that was never really
+      # there and the Application sits permanently OutOfSync (Healthy the
+      # whole time — nothing is actually broken). Server-side apply tracks
+      # field ownership instead of that annotation, so it doesn't hit the
+      # size limit. Confirmed live: all 5 CRDs here were the only resources
+      # ever showing OutOfSync, and each carried a
+      # last-applied-configuration annotation despite its exact-size mismatch.
+      - ServerSideApply=true
