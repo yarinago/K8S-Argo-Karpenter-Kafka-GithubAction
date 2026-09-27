@@ -1,0 +1,75 @@
+# Standalone Karpenter-scaling demo: a busy-loop Deployment pinned well
+# above its own CPU request, plus an HPA watching it. Deliberately outside
+# Argo CD (not referenced by any Application/kustomization) so
+# splitwise-runtime's selfHeal can never revert the replica count mid-demo
+# — applied/deleted directly by demo_karpenter_scale.sh instead. Everything
+# lives in its own namespace so `kubectl delete ns demo` is a total,
+# one-command revert with nothing left behind to clean up by hand.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cpu-burn
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cpu-burn
+  template:
+    metadata:
+      labels:
+        app: cpu-burn
+    spec:
+      containers:
+        - name: cpu-burn
+          image: busybox:1.36
+          # Pure shell busy-loop — pins a core at 100% with no extra binary
+          # to pull in, so it starts as fast as the image itself pulls.
+          command: ["sh", "-c", "while true; do :; done"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+---
+# At limit=500m against request=250m, each pod's measured usage sits at
+# ~200% of its request — far above the 50% target below — so the HPA raises
+# replicas on essentially every sync (~15s), 4 pods at a time, until
+# maxReplicas. That's what drives the node count: once replicas outgrow
+# what the general NodePool's existing nodes have room for, the extra pods
+# go Pending and Karpenter launches to fit them.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cpu-burn
+  namespace: demo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cpu-burn
+  minReplicas: 1
+  maxReplicas: 15
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 60

@@ -144,6 +144,12 @@ if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$REGION" >/dev/null
     echo "  aws-bootstrap-root not found — already deleted or never created, skipping."
   fi
 
+  # The Argo CD server Ingress is created by Terraform's helm_release.argocd,
+  # not by any Argo Application, so the root's cascade never touches it. It
+  # would sit in the wait-loop below forever. Delete it here, while the ALB
+  # controller is still alive to release its ALB.
+  kubectl delete ingress argocd-server -n argocd --ignore-not-found=true --wait=false || true
+
   echo "-- Waiting for every Ingress/TargetGroupBinding/ExternalSecret cluster-wide to actually be gone (their controllers must still be running to clear these) --"
   # `kubectl get <type>` on a CRD-backed type whose CRD no longer exists at
   # all (e.g. externalsecrets, if a prior run's cleanup already let it fully
@@ -167,6 +173,14 @@ if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$REGION" >/dev/null
       break
     fi
     echo "  still remaining: $ING_COUNT ingress(es), $TGB_COUNT targetgroupbinding(s), $ES_COUNT externalsecret(s)... ($((DEADLINE - SECONDS))s left)"
+    # Strimzi's topic-operator finalizer can never clear once the Kafka
+    # cluster is deleted first; the KafkaTopic then blocks the Application
+    # cascade (and everything queued behind it) indefinitely. The topic's
+    # data is going away with the cluster anyway, so strip the finalizer.
+    for T in $(kubectl get kafkatopic -A -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null || true); do
+      echo "  stripping stuck finalizer from KafkaTopic $T"
+      kubectl patch kafkatopic "${T#*/}" -n "${T%/*}" --type merge -p '{"metadata":{"finalizers":null}}' || true
+    done
     sleep 15
   done
   REMAINING_ING=$(count_remaining ingress)

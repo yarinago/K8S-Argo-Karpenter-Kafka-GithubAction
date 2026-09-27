@@ -171,6 +171,20 @@ Two `NodePool`/`EC2NodeClass` pairs per environment (Milestone 6's "at least two
 
 CPU/memory limits on both are starting guardrails derived from local's measured combined footprint (~10.7GB at steady state for the full local stack), not tuned production values — see `envs/<env>/02-platform/variables.tf`.
 
+### Karpenter scaling demo
+
+A one-command way to make Karpenter add, and later remove, a node on demand (`dev` only):
+
+```sh
+./scripts/demo_karpenter_scale.sh dev up       # apply a self-overloading Deployment + HPA
+./scripts/demo_karpenter_scale.sh dev status   # watch the HPA, its pods, and the nodes
+./scripts/demo_karpenter_scale.sh dev down     # delete the demo namespace — full revert
+```
+
+`up` deploys a busy-loop container into its own `demo` namespace, requesting 250m CPU but permanently using well past that. Its `HorizontalPodAutoscaler` (target 50% utilization) reacts by raising replicas roughly every 15s; once replicas outgrow what the current nodes have room for, the extra pods go `Pending` and Karpenter launches a node to fit them — the same mechanism a real load spike triggers, just guaranteed to fire on demand. It runs outside Argo CD on purpose, so nothing reconciles the replica count back down mid-demo. `down` deletes the whole `demo` namespace in one step; Karpenter consolidates away any now-empty node after its normal delay.
+
+Needs `metrics-server` (its own Argo CD Application) already synced first — without it the HPA has no CPU metric to scale on and its targets stay `<unknown>`.
+
 ### Secrets
 
 `envs/<env>/01-cluster` creates empty Secrets Manager containers (`splitwise/<env>/app-config`, `splitwise/<env>/kafka-credentials`) via `models/secrets`. Real values are optional and never hardcoded: supply them through the `splitwise_app_config` variable (sensitive, default `{}`) via a gitignored `terraform.tfvars` or `TF_VAR_splitwise_app_config` — see that root's `terraform.tfvars.example`. `02-platform` wires up a `ClusterSecretStore` (External Secrets Operator) so pods pull those values at runtime; this replaces local's SOPS/KSOPS entirely (AWS's Argo CD has no KSOPS installed).
