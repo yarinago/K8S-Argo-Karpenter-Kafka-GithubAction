@@ -88,28 +88,3 @@ patches:
                   httpGet:
                     path: /healthz
                     port: http
-
-  # TEMPORARY, remove once applied once: splitwise-dashboard-materializer's
-  # committed offset got stranded past the current topic content after an
-  # earlier PVC swap wiped the local read-model DB out from under it (the
-  # offset lives in Kafka, independent of the PVC) -- the consumer resumed
-  # from "already caught up" and never replayed the 157 messages still
-  # sitting in the topic into the now-empty DB. A fresh group_id has no
-  # committed offset, so KAFKA_AUTO_OFFSET_RESET=earliest (already set)
-  # replays the whole topic into the current DB on its own.
-  - target:
-      kind: Deployment
-      name: splitwise-export
-    patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: splitwise-export
-      spec:
-        template:
-          spec:
-            containers:
-              - name: consumer
-                env:
-                  - name: KAFKA_GROUP_ID
-                    value: splitwise-dashboard-materializer-resync1
