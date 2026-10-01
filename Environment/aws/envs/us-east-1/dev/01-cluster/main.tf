@@ -168,10 +168,18 @@ resource "aws_efs_file_system" "splitwise_export" {
 # One mount target per private subnet/AZ -- the EFS CSI driver's dynamic
 # provisioning (efs-sc StorageClass, 02-platform) needs a mount target
 # reachable from whichever AZ a pod actually lands in.
+#
+# count, not for_each over toset(module.vpc.private_subnet_ids) -- that
+# failed outright on a true from-scratch plan ("Invalid for_each argument
+# ... values derived from resource attributes that cannot be determined
+# until apply"), since the subnet IDs themselves don't exist yet before
+# module.vpc is applied. count only needs the *length* of that list, which
+# is statically known already (it's exactly length(var.azs), fixed by
+# models/vpc's own private_subnets expression), not each element's value.
 resource "aws_efs_mount_target" "splitwise_export" {
-  for_each        = toset(module.vpc.private_subnet_ids)
+  count           = length(module.vpc.private_subnet_ids)
   file_system_id  = aws_efs_file_system.splitwise_export.id
-  subnet_id       = each.value
+  subnet_id       = module.vpc.private_subnet_ids[count.index]
   security_groups = [aws_security_group.efs.id]
 }
 
