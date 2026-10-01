@@ -39,6 +39,30 @@ resource "kubernetes_storage_class" "gp3" {
   }
 }
 
+# ReadWriteMany for splitwise-export's read-model PVC only -- see
+# 01-cluster's aws_efs_file_system.splitwise_export comment for why
+# (RollingUpdate deadlock on EBS's ReadWriteOnce single-attach). NOT the
+# cluster default: gp3 above stays default for everything else
+# (Kafka/Prometheus/Loki/Grafana all want ordinary RWO block storage, not a
+# network filesystem). Delete reclaim policy, not Retain -- matches gp3's
+# and this project's "destroy/recreate environments often" posture
+# (recovery_window_in_days=0 on the Secrets Manager secrets is the same
+# call); Retain would leave orphaned EFS access points behind on every
+# teardown, the same class of manual-cleanup problem this project has
+# already hit with leftover ALBs.
+resource "kubernetes_storage_class" "efs" {
+  metadata {
+    name = "efs-sc"
+  }
+  storage_provisioner = "efs.csi.aws.com"
+  reclaim_policy      = "Delete"
+  parameters = {
+    provisioningMode = "efs-ap"
+    fileSystemId     = data.terraform_remote_state.cluster.outputs.efs_file_system_id
+    directoryPerms   = "700"
+  }
+}
+
 # --- Karpenter -------------------------------------------------------------
 # Runs in kube-system on the bootstrap node group — the only node that
 # exists before Karpenter itself can provision anything. No taint/

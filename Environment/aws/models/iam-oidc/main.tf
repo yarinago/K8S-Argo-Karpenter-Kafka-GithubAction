@@ -236,3 +236,47 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
   role       = aws_iam_role.ebs_csi.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
+
+# --- EFS CSI driver -------------------------------------------------------
+# Same pattern as the EBS CSI driver above: AWS's own managed
+# AmazonEFSCSIDriverPolicy, not a hand-maintained custom policy. Backs
+# splitwise-household-expenses's read-model PVC -- ReadWriteMany so a new
+# pod can mount it and reach Ready WHILE the old pod (mid-RollingUpdate)
+# still holds it, instead of EBS's ReadWriteOnce single-attach forcing a
+# detach-then-attach handoff that deadlocks a RollingUpdate on a
+# single-replica Deployment (hit live: new pod stuck
+# ContainerCreating/FailedAttachVolume waiting on the still-running old
+# pod to release the volume).
+data "aws_iam_policy_document" "efs_csi_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [var.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${var.oidc_provider_url}:sub"
+      values   = ["system:serviceaccount:kube-system:efs-csi-controller-sa"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${var.oidc_provider_url}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "efs_csi" {
+  name               = "${var.cluster_name}-efs-csi-driver"
+  assume_role_policy = data.aws_iam_policy_document.efs_csi_trust.json
+}
+
+resource "aws_iam_role_policy_attachment" "efs_csi" {
+  role       = aws_iam_role.efs_csi.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"
+}

@@ -122,3 +122,61 @@ resource "aws_eks_addon" "ebs_csi_driver" {
   addon_name               = "aws-ebs-csi-driver"
   service_account_role_arn = module.iam_oidc.ebs_csi_driver_role_arn
 }
+
+# --- EFS for splitwise-export's read-model PVC -----------------------------
+# ReadWriteMany so a RollingUpdate's new pod can mount this WHILE the old
+# pod still holds it -- EBS (ReadWriteOnce, single-attach) deadlocked every
+# deploy instead (see module.iam_oidc's efs_csi_trust comment for the live
+# symptom). The data itself is a disposable materialized view the app's
+# consumer rebuilds from Kafka (KAFKA_AUTO_OFFSET_RESET=earliest in the app
+# repo's deployment.yaml), not a source of truth -- losing it is harmless,
+# which is what makes trading EBS's simplicity for EFS worth it here.
+resource "aws_security_group" "efs" {
+  name_prefix = "${local.cluster_name}-efs-"
+  description = "Allow NFS from this clusters nodes to the splitwise-export read-model EFS filesystem"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    description     = "NFS from cluster nodes"
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [module.eks.node_security_group_id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_efs_file_system" "splitwise_export" {
+  creation_token = "${local.cluster_name}-splitwise-export-read-model"
+  encrypted      = true
+
+  tags = {
+    Name = "${local.cluster_name}-splitwise-export-read-model"
+  }
+}
+
+# One mount target per private subnet/AZ -- the EFS CSI driver's dynamic
+# provisioning (efs-sc StorageClass, 02-platform) needs a mount target
+# reachable from whichever AZ a pod actually lands in.
+resource "aws_efs_mount_target" "splitwise_export" {
+  for_each        = toset(module.vpc.private_subnet_ids)
+  file_system_id  = aws_efs_file_system.splitwise_export.id
+  subnet_id       = each.value
+  security_groups = [aws_security_group.efs.id]
+}
+
+resource "aws_eks_addon" "efs_csi_driver" {
+  cluster_name             = module.eks.cluster_name
+  addon_name               = "aws-efs-csi-driver"
+  service_account_role_arn = module.iam_oidc.efs_csi_driver_role_arn
+}
