@@ -54,3 +54,7 @@ output "alb_controller_role_arn" {
 output "secret_arns" {
   value = module.secrets.secret_arns
 }
+
+output "efs_file_system_id" {
+  value = aws_efs_file_system.splitwise_export.id
+}

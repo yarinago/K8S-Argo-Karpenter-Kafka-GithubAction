@@ -1,5 +1,7 @@
 # AWS (Terraform + EKS + Karpenter)
 
+<video src="docs/splitwise-demo.mp4" controls width="100%"></video>
+
 This folder is the AWS counterpart to `Environment/local/` — same Argo CD
 app-of-apps idea, but on a real EKS cluster provisioned by Terraform
 instead of a local k3d cluster, with Karpenter doing node autoscaling
@@ -46,9 +48,9 @@ Environment/aws/
 
 ## Architecture Diagram
 
-![AWS architecture diagram of dev's 01-cluster: Internet through the Internet Gateway and NAT Gateway to the EKS cluster, its node group, add-ons and IAM access entries, the Karpenter interruption SQS queue, and the KMS/Secrets Manager/ECR/CloudWatch resources alongside it](docs/architecture.png)
+![AWS architecture diagram of dev's 01-cluster: Internet through the Internet Gateway and NAT Gateway to the EKS cluster, its node group, add-ons and IAM access entries, the Karpenter interruption SQS queue, and the KMS/Secrets Manager/ECR/CloudWatch/EFS resources alongside it](docs/architecture.png)
 
-Reflects `envs/us-east-1/dev/01-cluster`'s Terraform code, kept accurate to what `terraform apply` actually creates. Scope is the AWS layer only: VPC, EKS, IAM/IRSA, KMS, Secrets Manager, the Karpenter interruption SQS queue. `02-platform` (Karpenter, ALB controller, Argo CD, etc.) and everything running inside the cluster are covered separately below, in the live cluster map.
+Reflects `envs/us-east-1/dev/01-cluster`'s Terraform code, kept accurate to what `terraform apply` actually creates. Scope is the AWS layer only: VPC, EKS, IAM/IRSA, KMS, Secrets Manager, the EFS filesystem backing the Splitwise app's read-model PVC, the Karpenter interruption SQS queue. `02-platform` (Karpenter, ALB controller, Argo CD, etc.) and everything running inside the cluster are covered separately below, in the live cluster map.
 
 ### Live cluster map
 
@@ -170,6 +172,27 @@ Two `NodePool`/`EC2NodeClass` pairs per environment (Milestone 6's "at least two
 - **`batch`** — tainted `workload-type=batch:NoSchedule`, `c`-category only, sized for `splitwise-loadgen`.
 
 CPU/memory limits on both are starting guardrails derived from local's measured combined footprint (~10.7GB at steady state for the full local stack), not tuned production values — see `envs/<env>/02-platform/variables.tf`.
+
+### Karpenter scaling demo
+
+A one-command way to make Karpenter add, and later remove, a node on demand (`dev` only):
+
+```sh
+./scripts/demo_karpenter_scale.sh dev up       # apply a self-overloading Deployment + HPA
+./scripts/demo_karpenter_scale.sh dev status   # watch the HPA, its pods, and the nodes
+./scripts/demo_karpenter_scale.sh dev down     # delete the demo namespace — full revert
+```
+
+`up` deploys a busy-loop container into its own `demo` namespace, requesting 250m CPU but permanently using well past that. Its `HorizontalPodAutoscaler` (target 50% utilization) reacts by raising replicas roughly every 15s; once replicas outgrow what the current nodes have room for, the extra pods go `Pending` and Karpenter launches a node to fit them — the same mechanism a real load spike triggers, just guaranteed to fire on demand. It runs outside Argo CD on purpose, so nothing reconciles the replica count back down mid-demo. `down` deletes the whole `demo` namespace in one step; Karpenter consolidates away any now-empty node after its normal delay.
+
+Needs `metrics-server` (its own Argo CD Application) already synced first — without it the HPA has no CPU metric to scale on and its targets stay `<unknown>`.
+
+### Storage
+
+Two `StorageClass`es, deliberately not the same choice for everything:
+
+- **`gp3`** (cluster default) — ordinary EBS-backed `ReadWriteOnce` block storage, used by everything except the one PVC below. The cluster ships with a `gp2` class out of the box, but its in-tree provisioner is deprecated/removed on this cluster's Kubernetes version, so a working `gp3` class is created and marked default instead.
+- **`efs-sc`** — EFS-backed `ReadWriteMany`, used only by the Splitwise app's read-model PVC. A single-replica Deployment on an ordinary `ReadWriteOnce` volume deadlocks its own rolling update: the new pod needs the volume mounted to reach Ready, but Kubernetes won't detach it from the still-running old pod until that pod terminates, and the old pod won't terminate until the new one's Ready. `ReadWriteMany` lets both pods hold the volume at once, so the rollout actually completes. Not the default for everything else — Kafka/Prometheus/Loki/Grafana all want ordinary block storage, not a network filesystem.
 
 ### Secrets
 

@@ -11,3 +11,4 @@ resources:
   - splitwise
   - monitoring
   - argo-rollouts
+  - metrics-server

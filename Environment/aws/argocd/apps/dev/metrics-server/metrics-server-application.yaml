@@ -1,0 +1,40 @@
+# Argo CD Application that installs metrics-server — the source of the
+# metrics.k8s.io API that HorizontalPodAutoscaler reads. Without it, any HPA
+# in the cluster sits at "unknown" targets and never scales. EKS worker
+# kubelet serving certs aren't signed for a verifiable hostname, so
+# --kubelet-insecure-tls is required here (the same setting AWS's own EKS
+# metrics-server docs call for on self-managed installs).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+  # See monitoring/grafana-application.yaml's identical block for why every
+  # child Application needs this, not just the app-of-apps root.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes-sigs.github.io/metrics-server/
+    chart: metrics-server
+    targetRevision: 3.12.2
+    helm:
+      releaseName: metrics-server
+      values: |
+        args:
+          - --kubelet-insecure-tls
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

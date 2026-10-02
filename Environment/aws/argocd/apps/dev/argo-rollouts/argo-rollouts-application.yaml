@@ -21,6 +21,18 @@ metadata:
     # sync-wave unset/0 by default) need this controller's CRDs to exist
     # first.
     argocd.argoproj.io/sync-wave: "-1"
+    # ServerSideApply=true below (sync option) only changes how the CRDs
+    # are *applied* — it stopped using the size-limited
+    # last-applied-configuration annotation, confirmed by managedFields
+    # now showing a single "argocd-controller Apply" entry with no stale
+    # client-side-apply manager. But Argo CD's *diff* still predicted the
+    # merge client-side by default, missing fields the API server defaults
+    # in on this schema, so the 5 CRDs here stayed OutOfSync even though
+    # they were correctly applied (a documented ArgoCD gap — see
+    # argoproj/argo-cd#11106, #11630). ServerSideDiff=true here makes the
+    # API server compute the diff instead, which is what actually clears
+    # the phantom drift.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
 spec:
   project: default
   sources:
@@ -44,3 +56,14 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      # rollouts.argoproj.io alone renders to ~586KB — well past kubectl
+      # apply's 262144-byte cap on the last-applied-configuration annotation
+      # client-side apply relies on for diffing. That annotation silently
+      # gets truncated, so every diff sees drift that was never really
+      # there and the Application sits permanently OutOfSync (Healthy the
+      # whole time — nothing is actually broken). Server-side apply tracks
+      # field ownership instead of that annotation, so it doesn't hit the
+      # size limit. Confirmed live: all 5 CRDs here were the only resources
+      # ever showing OutOfSync, and each carried a
+      # last-applied-configuration annotation despite its exact-size mismatch.
+      - ServerSideApply=true

@@ -122,3 +122,72 @@ resource "aws_eks_addon" "ebs_csi_driver" {
   addon_name               = "aws-ebs-csi-driver"
   service_account_role_arn = module.iam_oidc.ebs_csi_driver_role_arn
 }
+
+# --- EFS for splitwise-export's read-model PVC -----------------------------
+# ReadWriteMany so a RollingUpdate's new pod can mount this WHILE the old
+# pod still holds it -- EBS (ReadWriteOnce, single-attach) deadlocked every
+# deploy instead (see module.iam_oidc's efs_csi_trust comment for the live
+# symptom). The data itself is a disposable materialized view the app's
+# consumer rebuilds from Kafka (KAFKA_AUTO_OFFSET_RESET=earliest in the app
+# repo's deployment.yaml), not a source of truth -- losing it is harmless,
+# which is what makes trading EBS's simplicity for EFS worth it here.
+resource "aws_security_group" "efs" {
+  name_prefix = "${local.cluster_name}-efs-"
+  description = "Allow NFS from this clusters nodes to the splitwise-export read-model EFS filesystem"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    description     = "NFS from cluster nodes"
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [module.eks.node_security_group_id]
+  }
+
+  # No egress block, deliberately -- security groups are stateful, so
+  # return traffic for the inbound NFS connection above is already
+  # permitted regardless of any egress rule. This SG is only ever attached
+  # to the EFS mount targets' ENIs, which never initiate their own
+  # outbound connections, so there's nothing a broad 0.0.0.0/0 egress rule
+  # would actually be needed for -- omitting it entirely (not just
+  # narrowing it) is both the more secure and the functionally correct
+  # choice here, not a tradeoff.
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_efs_file_system" "splitwise_export" {
+  #checkov:skip=CKV_AWS_184:AWS-managed key (encrypted=true), not a customer-managed one, is deliberate -- this filesystem holds a disposable materialized Kafka read-model cache (see the comment above), not secrets. A CMK buys key-policy-level access control and rotation, real value for Secrets Manager's actual credentials (aws_kms_key.secrets, this same file) and not proportional cost for a cache that's explicitly fine to lose.
+  creation_token = "${local.cluster_name}-splitwise-export-read-model"
+  encrypted      = true
+
+  tags = {
+    Name = "${local.cluster_name}-splitwise-export-read-model"
+  }
+}
+
+# One mount target per private subnet/AZ -- the EFS CSI driver's dynamic
+# provisioning (efs-sc StorageClass, 02-platform) needs a mount target
+# reachable from whichever AZ a pod actually lands in.
+#
+# count, not for_each over toset(module.vpc.private_subnet_ids) -- that
+# failed outright on a true from-scratch plan ("Invalid for_each argument
+# ... values derived from resource attributes that cannot be determined
+# until apply"), since the subnet IDs themselves don't exist yet before
+# module.vpc is applied. count only needs the *length* of that list, which
+# is statically known already (it's exactly length(var.azs), fixed by
+# models/vpc's own private_subnets expression), not each element's value.
+resource "aws_efs_mount_target" "splitwise_export" {
+  count           = length(module.vpc.private_subnet_ids)
+  file_system_id  = aws_efs_file_system.splitwise_export.id
+  subnet_id       = module.vpc.private_subnet_ids[count.index]
+  security_groups = [aws_security_group.efs.id]
+}
+
+resource "aws_eks_addon" "efs_csi_driver" {
+  cluster_name             = module.eks.cluster_name
+  addon_name               = "aws-efs-csi-driver"
+  service_account_role_arn = module.iam_oidc.efs_csi_driver_role_arn
+}
