@@ -158,8 +158,8 @@ resource "aws_security_group" "efs" {
   }
 }
 
-#checkov:skip=CKV_AWS_184:AWS-managed key (encrypted=true), not a customer-managed one, is deliberate -- this filesystem holds a disposable materialized Kafka read-model cache (see the comment above), not secrets. A CMK buys key-policy-level access control and rotation, real value for Secrets Manager's actual credentials (aws_kms_key.secrets, this same file) and not proportional cost for a cache that's explicitly fine to lose.
 resource "aws_efs_file_system" "splitwise_export" {
+  #checkov:skip=CKV_AWS_184:AWS-managed key (encrypted=true), not a customer-managed one, is deliberate -- this filesystem holds a disposable materialized Kafka read-model cache (see the comment above), not secrets. A CMK buys key-policy-level access control and rotation, real value for Secrets Manager's actual credentials (aws_kms_key.secrets, this same file) and not proportional cost for a cache that's explicitly fine to lose.
   creation_token = "${local.cluster_name}-splitwise-export-read-model"
   encrypted      = true
 
