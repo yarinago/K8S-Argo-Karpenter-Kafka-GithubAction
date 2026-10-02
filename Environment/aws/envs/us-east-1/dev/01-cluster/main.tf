@@ -144,18 +144,21 @@ resource "aws_security_group" "efs" {
     security_groups = [module.eks.node_security_group_id]
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # No egress block, deliberately -- security groups are stateful, so
+  # return traffic for the inbound NFS connection above is already
+  # permitted regardless of any egress rule. This SG is only ever attached
+  # to the EFS mount targets' ENIs, which never initiate their own
+  # outbound connections, so there's nothing a broad 0.0.0.0/0 egress rule
+  # would actually be needed for -- omitting it entirely (not just
+  # narrowing it) is both the more secure and the functionally correct
+  # choice here, not a tradeoff.
 
   lifecycle {
     create_before_destroy = true
   }
 }
 
+#checkov:skip=CKV_AWS_184:AWS-managed key (encrypted=true), not a customer-managed one, is deliberate -- this filesystem holds a disposable materialized Kafka read-model cache (see the comment above), not secrets. A CMK buys key-policy-level access control and rotation, real value for Secrets Manager's actual credentials (aws_kms_key.secrets, this same file) and not proportional cost for a cache that's explicitly fine to lose.
 resource "aws_efs_file_system" "splitwise_export" {
   creation_token = "${local.cluster_name}-splitwise-export-read-model"
   encrypted      = true
