@@ -1,6 +1,6 @@
 # AWS (Terraform + EKS + Karpenter)
 
-<video src="docs/splitwise-demo.mp4" controls width="100%"></video>
+https://github.com/user-attachments/assets/6a68541d-0fc4-42b7-b56f-6aa3d9bc49f1
 
 This folder is the AWS counterpart to `Environment/local/` — same Argo CD
 app-of-apps idea, but on a real EKS cluster provisioned by Terraform
